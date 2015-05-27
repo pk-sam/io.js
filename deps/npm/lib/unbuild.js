@@ -5,6 +5,7 @@ var readJson = require("read-package-json")
   , gentlyRm = require("./utils/gently-rm.js")
   , npm = require("./npm.js")
   , path = require("path")
+  , isInside = require("path-is-inside")
   , lifecycle = require("./utils/lifecycle.js")
   , asyncMap = require("slide").asyncMap
   , chain = require("slide").chain
@@ -23,12 +24,12 @@ function unbuild_ (silent) { return function (folder, cb_) {
     cb_(er, path.relative(npm.root, folder))
   }
   folder = path.resolve(folder)
+  var base = isInside(folder, npm.prefix) ? npm.prefix : folder
   delete build._didBuild[folder]
   log.verbose("unbuild", folder.substr(npm.prefix.length + 1))
   readJson(path.resolve(folder, "package.json"), function (er, pkg) {
     // if no json, then just trash it, but no scripts or whatever.
-    if (er) return gentlyRm(folder, false, npm.prefix, cb)
-    readJson.cache.del(folder)
+    if (er) return gentlyRm(folder, false, base, cb)
     chain
       ( [ [lifecycle, pkg, "preuninstall", folder, false, true]
         , [lifecycle, pkg, "uninstall", folder, false, true]
@@ -38,7 +39,7 @@ function unbuild_ (silent) { return function (folder, cb_) {
           }
         , [rmStuff, pkg, folder]
         , [lifecycle, pkg, "postuninstall", folder, false, true]
-        , [gentlyRm, folder, false, npm.prefix] ]
+        , [gentlyRm, folder, false, base] ]
       , cb )
   })
 }}
@@ -50,8 +51,6 @@ function rmStuff (pkg, folder, cb) {
   var parent = path.dirname(folder)
     , gnm = npm.dir
     , top = gnm === parent
-
-  readJson.cache.del(path.resolve(folder, "package.json"))
 
   log.verbose("unbuild rmStuff", pkg._id, "from", gnm)
   if (!top) log.verbose("unbuild rmStuff", "in", parent)

@@ -13,6 +13,10 @@ Using npm on the command line
 
 javascript package manager
 
+### npm-access(1)
+
+Set access level on published packages
+
 ### npm-adduser(1)
 
 Add a registry user account
@@ -53,6 +57,10 @@ Reduce duplication
 
 Deprecate a version of a package
 
+### npm-dist-tag(1)
+
+Modify package distribution tags
+
 ### npm-docs(1)
 
 Docs for a package in a web browser maybe
@@ -84,6 +92,10 @@ Install a package
 ### npm-link(1)
 
 Symlink a package folder
+
+### npm-logout(1)
+
+Log out of the registry
 
 ### npm-ls(1)
 

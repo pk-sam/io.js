@@ -3,7 +3,7 @@
 #include "node_crypto.h"
 #include "node_crypto_bio.h"
 #include "node_crypto_groups.h"
-#include "tls_wrap.h"  // TLSCallbacks
+#include "tls_wrap.h"  // TLSWrap
 
 #include "async-wrap.h"
 #include "async-wrap-inl.h"
@@ -60,6 +60,8 @@ namespace crypto {
 using v8::Array;
 using v8::Boolean;
 using v8::Context;
+using v8::DEFAULT;
+using v8::DontDelete;
 using v8::EscapableHandleScope;
 using v8::Exception;
 using v8::External;
@@ -76,6 +78,7 @@ using v8::Object;
 using v8::Persistent;
 using v8::PropertyAttribute;
 using v8::PropertyCallbackInfo;
+using v8::ReadOnly;
 using v8::String;
 using v8::V8;
 using v8::Value;
@@ -98,28 +101,28 @@ const char* const root_certs[] = {
 X509_STORE* root_cert_store;
 
 // Just to generate static methods
-template class SSLWrap<TLSCallbacks>;
-template void SSLWrap<TLSCallbacks>::AddMethods(Environment* env,
-                                                Handle<FunctionTemplate> t);
-template void SSLWrap<TLSCallbacks>::InitNPN(SecureContext* sc);
-template SSL_SESSION* SSLWrap<TLSCallbacks>::GetSessionCallback(
+template class SSLWrap<TLSWrap>;
+template void SSLWrap<TLSWrap>::AddMethods(Environment* env,
+                                           Handle<FunctionTemplate> t);
+template void SSLWrap<TLSWrap>::InitNPN(SecureContext* sc);
+template SSL_SESSION* SSLWrap<TLSWrap>::GetSessionCallback(
     SSL* s,
     unsigned char* key,
     int len,
     int* copy);
-template int SSLWrap<TLSCallbacks>::NewSessionCallback(SSL* s,
-                                                       SSL_SESSION* sess);
-template void SSLWrap<TLSCallbacks>::OnClientHello(
+template int SSLWrap<TLSWrap>::NewSessionCallback(SSL* s,
+                                                  SSL_SESSION* sess);
+template void SSLWrap<TLSWrap>::OnClientHello(
     void* arg,
     const ClientHelloParser::ClientHello& hello);
 
 #ifdef OPENSSL_NPN_NEGOTIATED
-template int SSLWrap<TLSCallbacks>::AdvertiseNextProtoCallback(
+template int SSLWrap<TLSWrap>::AdvertiseNextProtoCallback(
     SSL* s,
     const unsigned char** data,
     unsigned int* len,
     void* arg);
-template int SSLWrap<TLSCallbacks>::SelectNextProtoCallback(
+template int SSLWrap<TLSWrap>::SelectNextProtoCallback(
     SSL* s,
     unsigned char** out,
     unsigned char* outlen,
@@ -127,7 +130,8 @@ template int SSLWrap<TLSCallbacks>::SelectNextProtoCallback(
     unsigned int inlen,
     void* arg);
 #endif
-template int SSLWrap<TLSCallbacks>::TLSExtStatusCallback(SSL* s, void* arg);
+template int SSLWrap<TLSWrap>::TLSExtStatusCallback(SSL* s, void* arg);
+template void SSLWrap<TLSWrap>::DestroySSL();
 
 
 static void crypto_threadid_cb(CRYPTO_THREADID* tid) {
@@ -261,13 +265,17 @@ void SecureContext::Initialize(Environment* env, Handle<Object> target) {
   env->SetProtoMethod(t, "loadPKCS12", SecureContext::LoadPKCS12);
   env->SetProtoMethod(t, "getTicketKeys", SecureContext::GetTicketKeys);
   env->SetProtoMethod(t, "setTicketKeys", SecureContext::SetTicketKeys);
+  env->SetProtoMethod(t, "setFreeListLength", SecureContext::SetFreeListLength);
   env->SetProtoMethod(t, "getCertificate", SecureContext::GetCertificate<true>);
   env->SetProtoMethod(t, "getIssuer", SecureContext::GetCertificate<false>);
 
-  NODE_SET_EXTERNAL(
-      t->PrototypeTemplate(),
-      "_external",
-      CtxGetter);
+  t->PrototypeTemplate()->SetAccessor(
+      FIXED_ONE_BYTE_STRING(env->isolate(), "_external"),
+      CtxGetter,
+      nullptr,
+      env->as_external(),
+      DEFAULT,
+      static_cast<PropertyAttribute>(ReadOnly | DontDelete));
 
   target->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "SecureContext"),
               t->GetFunction());
@@ -587,6 +595,8 @@ void SecureContext::AddCACert(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   SecureContext* sc = Unwrap<SecureContext>(args.Holder());
+  ClearErrorOnReturn clear_error_on_return;
+  (void) &clear_error_on_return;  // Silence compiler warning.
 
   if (args.Length() != 1) {
     return env->ThrowTypeError("Bad parameter");
@@ -647,6 +657,8 @@ void SecureContext::AddCRL(const FunctionCallbackInfo<Value>& args) {
 
 void SecureContext::AddRootCerts(const FunctionCallbackInfo<Value>& args) {
   SecureContext* sc = Unwrap<SecureContext>(args.Holder());
+  ClearErrorOnReturn clear_error_on_return;
+  (void) &clear_error_on_return;  // Silence compiler warning.
 
   CHECK_EQ(sc->ca_store_, nullptr);
 
@@ -682,6 +694,8 @@ void SecureContext::AddRootCerts(const FunctionCallbackInfo<Value>& args) {
 
 void SecureContext::SetCiphers(const FunctionCallbackInfo<Value>& args) {
   SecureContext* sc = Unwrap<SecureContext>(args.Holder());
+  ClearErrorOnReturn clear_error_on_return;
+  (void) &clear_error_on_return;  // Silence compiler warning.
 
   if (args.Length() != 1 || !args[0]->IsString()) {
     return sc->env()->ThrowTypeError("Bad parameter");
@@ -721,6 +735,8 @@ void SecureContext::SetECDHCurve(const FunctionCallbackInfo<Value>& args) {
 void SecureContext::SetDHParam(const FunctionCallbackInfo<Value>& args) {
   SecureContext* sc = Unwrap<SecureContext>(args.This());
   Environment* env = sc->env();
+  ClearErrorOnReturn clear_error_on_return;
+  (void) &clear_error_on_return;  // Silence compiler warning.
 
   // Auto DH is not supported in openssl 1.0.1, so dhparam needs
   // to be specifed explicitly
@@ -825,6 +841,8 @@ void SecureContext::LoadPKCS12(const FunctionCallbackInfo<Value>& args) {
   bool ret = false;
 
   SecureContext* sc = Unwrap<SecureContext>(args.Holder());
+  ClearErrorOnReturn clear_error_on_return;
+  (void) &clear_error_on_return;  // Silence compiler warning.
 
   if (args.Length() < 1) {
     return env->ThrowTypeError("Bad parameter");
@@ -916,6 +934,13 @@ void SecureContext::SetTicketKeys(const FunctionCallbackInfo<Value>& args) {
 }
 
 
+void SecureContext::SetFreeListLength(const FunctionCallbackInfo<Value>& args) {
+  SecureContext* wrap = Unwrap<SecureContext>(args.Holder());
+
+  wrap->ctx_->freelist_max_len = args[0]->Int32Value();
+}
+
+
 void SecureContext::CtxGetter(Local<String> property,
                               const PropertyCallbackInfo<Value>& info) {
   HandleScope scope(info.GetIsolate());
@@ -963,7 +988,7 @@ void SSLWrap<Base>::AddMethods(Environment* env, Handle<FunctionTemplate> t) {
   env->SetProtoMethod(t, "getCurrentCipher", GetCurrentCipher);
   env->SetProtoMethod(t, "endParser", EndParser);
   env->SetProtoMethod(t, "renegotiate", Renegotiate);
-  env->SetProtoMethod(t, "shutdown", Shutdown);
+  env->SetProtoMethod(t, "shutdownSSL", Shutdown);
   env->SetProtoMethod(t, "getTLSTicket", GetTLSTicket);
   env->SetProtoMethod(t, "newSessionDone", NewSessionDone);
   env->SetProtoMethod(t, "setOCSPResponse", SetOCSPResponse);
@@ -981,10 +1006,13 @@ void SSLWrap<Base>::AddMethods(Environment* env, Handle<FunctionTemplate> t) {
   env->SetProtoMethod(t, "setNPNProtocols", SetNPNProtocols);
 #endif
 
-  NODE_SET_EXTERNAL(
-      t->PrototypeTemplate(),
-      "_external",
-      SSLGetter);
+  t->PrototypeTemplate()->SetAccessor(
+      FIXED_ONE_BYTE_STRING(env->isolate(), "_external"),
+      SSLGetter,
+      nullptr,
+      env->as_external(),
+      DEFAULT,
+      static_cast<PropertyAttribute>(ReadOnly | DontDelete));
 }
 
 
@@ -1089,15 +1117,9 @@ void SSLWrap<Base>::OnClientHello(void* arg,
 
 
 static bool SafeX509ExtPrint(BIO* out, X509_EXTENSION* ext) {
-  // Only alt_name is escaped at the moment
-  if (OBJ_obj2nid(ext->object) != NID_subject_alt_name)
-    return false;
-
   const X509V3_EXT_METHOD* method = X509V3_EXT_get(ext);
-  if (method == NULL || method->it == NULL)
-    return false;
 
-  if (method->i2v != reinterpret_cast<X509V3_EXT_I2V>(i2v_GENERAL_NAMES))
+  if (method != X509V3_EXT_get_nid(NID_subject_alt_name))
     return false;
 
   const unsigned char* p = ext->value->data;
@@ -1128,6 +1150,7 @@ static bool SafeX509ExtPrint(BIO* out, X509_EXTENSION* ext) {
       X509V3_EXT_val_prn(out, nval, 0, 0);
     }
   }
+  sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
 
   return true;
 }
@@ -1854,6 +1877,17 @@ void SSLWrap<Base>::SSLGetter(Local<String> property,
   SSL* ssl = Unwrap<Base>(info.Holder())->ssl_;
   Local<External> ext = External::New(info.GetIsolate(), ssl);
   info.GetReturnValue().Set(ext);
+}
+
+
+template <class Base>
+void SSLWrap<Base>::DestroySSL() {
+  if (ssl_ == nullptr)
+    return;
+
+  SSL_free(ssl_);
+  env_->isolate()->AdjustAmountOfExternalAllocatedMemory(-kExternalSize);
+  ssl_ = nullptr;
 }
 
 
@@ -2750,19 +2784,10 @@ void CipherBase::Update(const FunctionCallbackInfo<Value>& args) {
 
   // Only copy the data if we have to, because it's a string
   if (args[0]->IsString()) {
-    Local<String> string = args[0].As<String>();
-    enum encoding encoding = ParseEncoding(env->isolate(), args[1], BINARY);
-    if (!StringBytes::IsValidString(env->isolate(), string, encoding))
-      return env->ThrowTypeError("Bad input string");
-    size_t buflen = StringBytes::StorageSize(env->isolate(), string, encoding);
-    char* buf = new char[buflen];
-    size_t written = StringBytes::Write(env->isolate(),
-                                        buf,
-                                        buflen,
-                                        string,
-                                        encoding);
-    r = cipher->Update(buf, written, &out, &out_len);
-    delete[] buf;
+    StringBytes::InlineDecoder decoder;
+    if (!decoder.Decode(env, args[0].As<String>(), args[1], BINARY))
+      return;
+    r = cipher->Update(decoder.out(), decoder.size(), &out, &out_len);
   } else {
     char* buf = Buffer::Data(args[0]);
     size_t buflen = Buffer::Length(args[0]);
@@ -2929,19 +2954,10 @@ void Hmac::HmacUpdate(const FunctionCallbackInfo<Value>& args) {
   // Only copy the data if we have to, because it's a string
   bool r;
   if (args[0]->IsString()) {
-    Local<String> string = args[0].As<String>();
-    enum encoding encoding = ParseEncoding(env->isolate(), args[1], BINARY);
-    if (!StringBytes::IsValidString(env->isolate(), string, encoding))
-      return env->ThrowTypeError("Bad input string");
-    size_t buflen = StringBytes::StorageSize(env->isolate(), string, encoding);
-    char* buf = new char[buflen];
-    size_t written = StringBytes::Write(env->isolate(),
-                                        buf,
-                                        buflen,
-                                        string,
-                                        encoding);
-    r = hmac->HmacUpdate(buf, written);
-    delete[] buf;
+    StringBytes::InlineDecoder decoder;
+    if (!decoder.Decode(env, args[0].As<String>(), args[1], BINARY))
+      return;
+    r = hmac->HmacUpdate(decoder.out(), decoder.size());
   } else {
     char* buf = Buffer::Data(args[0]);
     size_t buflen = Buffer::Length(args[0]);
@@ -3053,19 +3069,10 @@ void Hash::HashUpdate(const FunctionCallbackInfo<Value>& args) {
   // Only copy the data if we have to, because it's a string
   bool r;
   if (args[0]->IsString()) {
-    Local<String> string = args[0].As<String>();
-    enum encoding encoding = ParseEncoding(env->isolate(), args[1], BINARY);
-    if (!StringBytes::IsValidString(env->isolate(), string, encoding))
-      return env->ThrowTypeError("Bad input string");
-    size_t buflen = StringBytes::StorageSize(env->isolate(), string, encoding);
-    char* buf = new char[buflen];
-    size_t written = StringBytes::Write(env->isolate(),
-                                        buf,
-                                        buflen,
-                                        string,
-                                        encoding);
-    r = hash->HashUpdate(buf, written);
-    delete[] buf;
+    StringBytes::InlineDecoder decoder;
+    if (!decoder.Decode(env, args[0].As<String>(), args[1], BINARY))
+      return;
+    r = hash->HashUpdate(decoder.out(), decoder.size());
   } else {
     char* buf = Buffer::Data(args[0]);
     size_t buflen = Buffer::Length(args[0]);
@@ -3214,19 +3221,10 @@ void Sign::SignUpdate(const FunctionCallbackInfo<Value>& args) {
   // Only copy the data if we have to, because it's a string
   Error err;
   if (args[0]->IsString()) {
-    Local<String> string = args[0].As<String>();
-    enum encoding encoding = ParseEncoding(env->isolate(), args[1], BINARY);
-    if (!StringBytes::IsValidString(env->isolate(), string, encoding))
-      return env->ThrowTypeError("Bad input string");
-    size_t buflen = StringBytes::StorageSize(env->isolate(), string, encoding);
-    char* buf = new char[buflen];
-    size_t written = StringBytes::Write(env->isolate(),
-                                        buf,
-                                        buflen,
-                                        string,
-                                        encoding);
-    err = sign->SignUpdate(buf, written);
-    delete[] buf;
+    StringBytes::InlineDecoder decoder;
+    if (!decoder.Decode(env, args[0].As<String>(), args[1], BINARY))
+      return;
+    err = sign->SignUpdate(decoder.out(), decoder.size());
   } else {
     char* buf = Buffer::Data(args[0]);
     size_t buflen = Buffer::Length(args[0]);
@@ -3395,19 +3393,10 @@ void Verify::VerifyUpdate(const FunctionCallbackInfo<Value>& args) {
   // Only copy the data if we have to, because it's a string
   Error err;
   if (args[0]->IsString()) {
-    Local<String> string = args[0].As<String>();
-    enum encoding encoding = ParseEncoding(env->isolate(), args[1], BINARY);
-    if (!StringBytes::IsValidString(env->isolate(), string, encoding))
-      return env->ThrowTypeError("Bad input string");
-    size_t buflen = StringBytes::StorageSize(env->isolate(), string, encoding);
-    char* buf = new char[buflen];
-    size_t written = StringBytes::Write(env->isolate(),
-                                        buf,
-                                        buflen,
-                                        string,
-                                        encoding);
-    err = verify->VerifyUpdate(buf, written);
-    delete[] buf;
+    StringBytes::InlineDecoder decoder;
+    if (!decoder.Decode(env, args[0].As<String>(), args[1], BINARY))
+      return;
+    err = verify->VerifyUpdate(decoder.out(), decoder.size());
   } else {
     char* buf = Buffer::Data(args[0]);
     size_t buflen = Buffer::Length(args[0]);
@@ -3561,12 +3550,12 @@ bool PublicKeyCipher::Cipher(const char* key_pem,
 
   // Check if this is a PKCS#8 or RSA public key before trying as X.509 and
   // private key.
-  if (operation == kEncrypt &&
+  if (operation == kPublic &&
       strncmp(key_pem, PUBLIC_KEY_PFX, PUBLIC_KEY_PFX_LEN) == 0) {
     pkey = PEM_read_bio_PUBKEY(bp, nullptr, nullptr, nullptr);
     if (pkey == nullptr)
       goto exit;
-  } else if (operation == kEncrypt &&
+  } else if (operation == kPublic &&
              strncmp(key_pem, PUBRSA_KEY_PFX, PUBRSA_KEY_PFX_LEN) == 0) {
     RSA* rsa = PEM_read_bio_RSAPublicKey(bp, nullptr, nullptr, nullptr);
     if (rsa) {
@@ -3577,7 +3566,7 @@ bool PublicKeyCipher::Cipher(const char* key_pem,
     }
     if (pkey == nullptr)
       goto exit;
-  } else if (operation == kEncrypt &&
+  } else if (operation == kPublic &&
              strncmp(key_pem, CERTIFICATE_PFX, CERTIFICATE_PFX_LEN) == 0) {
     x509 = PEM_read_bio_X509(bp, nullptr, CryptoPemCallback, nullptr);
     if (x509 == nullptr)
@@ -3692,8 +3681,8 @@ void DiffieHellman::Initialize(Environment* env, Handle<Object> target) {
   t->InstanceTemplate()->SetAccessor(env->verify_error_string(),
                                      DiffieHellman::VerifyErrorGetter,
                                      nullptr,
-                                     Handle<Value>(),
-                                     v8::DEFAULT,
+                                     env->as_external(),
+                                     DEFAULT,
                                      attributes);
 
   target->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "DiffieHellman"),
@@ -3712,8 +3701,8 @@ void DiffieHellman::Initialize(Environment* env, Handle<Object> target) {
   t2->InstanceTemplate()->SetAccessor(env->verify_error_string(),
                                       DiffieHellman::VerifyErrorGetter,
                                       nullptr,
-                                      Handle<Value>(),
-                                      v8::DEFAULT,
+                                      env->as_external(),
+                                      DEFAULT,
                                       attributes);
 
   target->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "DiffieHellmanGroup"),
@@ -4589,25 +4578,18 @@ class RandomBytesRequest : public AsyncWrap {
 };
 
 
-template <bool pseudoRandom>
 void RandomBytesWork(uv_work_t* work_req) {
   RandomBytesRequest* req =
       ContainerOf(&RandomBytesRequest::work_req_, work_req);
-  int r;
 
   // Ensure that OpenSSL's PRNG is properly seeded.
   CheckEntropy();
 
-  if (pseudoRandom == true) {
-    r = RAND_pseudo_bytes(reinterpret_cast<unsigned char*>(req->data()),
-                          req->size());
-  } else {
-    r = RAND_bytes(reinterpret_cast<unsigned char*>(req->data()), req->size());
-  }
+  const int r = RAND_bytes(reinterpret_cast<unsigned char*>(req->data()),
+                           req->size());
 
-  // RAND_bytes() returns 0 on error. RAND_pseudo_bytes() returns 0 when the
-  // result is not cryptographically strong - but that's not an error.
-  if (r == 0 && pseudoRandom == false) {
+  // RAND_bytes() returns 0 on error.
+  if (r == 0) {
     req->set_error(ERR_get_error());
   } else if (r == -1) {
     req->set_error(static_cast<unsigned long>(-1));
@@ -4650,7 +4632,6 @@ void RandomBytesAfter(uv_work_t* work_req, int status) {
 }
 
 
-template <bool pseudoRandom>
 void RandomBytes(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
@@ -4675,12 +4656,12 @@ void RandomBytes(const FunctionCallbackInfo<Value>& args) {
       obj->Set(env->domain_string(), env->domain_array()->Get(0));
     uv_queue_work(env->event_loop(),
                   req->work_req(),
-                  RandomBytesWork<pseudoRandom>,
+                  RandomBytesWork,
                   RandomBytesAfter);
     args.GetReturnValue().Set(obj);
   } else {
     Local<Value> argv[2];
-    RandomBytesWork<pseudoRandom>(req->work_req());
+    RandomBytesWork(req->work_req());
     RandomBytesCheck(req, argv);
     delete req;
 
@@ -5041,19 +5022,26 @@ void InitCrypto(Handle<Object> target,
   env->SetMethod(target, "setEngine", SetEngine);
 #endif  // !OPENSSL_NO_ENGINE
   env->SetMethod(target, "PBKDF2", PBKDF2);
-  env->SetMethod(target, "randomBytes", RandomBytes<false>);
-  env->SetMethod(target, "pseudoRandomBytes", RandomBytes<true>);
+  env->SetMethod(target, "randomBytes", RandomBytes);
   env->SetMethod(target, "getSSLCiphers", GetSSLCiphers);
   env->SetMethod(target, "getCiphers", GetCiphers);
   env->SetMethod(target, "getHashes", GetHashes);
   env->SetMethod(target, "publicEncrypt",
-                 PublicKeyCipher::Cipher<PublicKeyCipher::kEncrypt,
+                 PublicKeyCipher::Cipher<PublicKeyCipher::kPublic,
                                          EVP_PKEY_encrypt_init,
                                          EVP_PKEY_encrypt>);
   env->SetMethod(target, "privateDecrypt",
-                 PublicKeyCipher::Cipher<PublicKeyCipher::kDecrypt,
+                 PublicKeyCipher::Cipher<PublicKeyCipher::kPrivate,
                                          EVP_PKEY_decrypt_init,
                                          EVP_PKEY_decrypt>);
+  env->SetMethod(target, "privateEncrypt",
+                 PublicKeyCipher::Cipher<PublicKeyCipher::kPrivate,
+                                         EVP_PKEY_sign_init,
+                                         EVP_PKEY_sign>);
+  env->SetMethod(target, "publicDecrypt",
+                 PublicKeyCipher::Cipher<PublicKeyCipher::kPublic,
+                                         EVP_PKEY_verify_recover_init,
+                                         EVP_PKEY_verify_recover>);
 }
 
 }  // namespace crypto

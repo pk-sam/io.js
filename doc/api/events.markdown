@@ -1,10 +1,10 @@
 # Events
 
-    Stability: 4 - API Frozen
+    Stability: 2 - Stable
 
 <!--type=module-->
 
-Many objects in Node emit events: a `net.Server` emits an event each time
+Many objects in io.js emit events: a `net.Server` emits an event each time
 a peer connects to it, a `fs.readStream` emits an event when the file is
 opened. All objects which emit events are instances of `events.EventEmitter`.
 You can access this module by doing: `require("events");`
@@ -20,12 +20,16 @@ attached to.
 
 ## Class: events.EventEmitter
 
-To access the EventEmitter class, `require('events').EventEmitter`.
+Use `require('events')` to access the EventEmitter class.
+
+```javascript
+var EventEmitter = require('events');
+```
 
 When an `EventEmitter` instance experiences an error, the typical action is
-to emit an `'error'` event.  Error events are treated as a special case in node.
-If there is no listener for it, then the default action is to print a stack
-trace and exit the program.
+to emit an `'error'` event.  Error events are treated as a special case in
+io.js.  If there is no listener for it, then the default action is to print
+a stack trace and exit the program.
 
 All EventEmitters emit the event `'newListener'` when new listeners are
 added and `'removeListener'` when a listener is removed.
@@ -143,8 +147,11 @@ Return the number of listeners for a given event.
 * `event` {String} The event name
 * `listener` {Function} The event handler function
 
-This event is emitted any time a listener is added. When this event is triggered,
-the listener may not yet have been added to the array of listeners for the `event`.
+This event is emitted *before* a listener is added. When this event is
+triggered, the listener has not been added to the array of listeners for the
+`event`. Any listeners added to the event `name` in the newListener event
+callback will be added *before* the listener that is in the process of being
+added.
 
 
 ### Event: 'removeListener'
@@ -152,5 +159,6 @@ the listener may not yet have been added to the array of listeners for the `even
 * `event` {String} The event name
 * `listener` {Function} The event handler function
 
-This event is emitted any time someone removes a listener.  When this event is triggered,
-the listener may not yet have been removed from the array of listeners for the `event`.
+This event is emitted *after* a listener is removed.  When this event is
+triggered, the listener has been removed from the array of listeners for the
+`event`.

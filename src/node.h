@@ -25,7 +25,9 @@
 # define _WIN32_WINNT   0x0501
 #endif
 
-#define NOMINMAX
+#ifndef NOMINMAX
+# define NOMINMAX
+#endif
 
 #endif
 
@@ -59,6 +61,12 @@ NODE_EXTERN v8::Local<v8::Value> UVException(v8::Isolate* isolate,
                                              const char* syscall = NULL,
                                              const char* message = NULL,
                                              const char* path = NULL);
+NODE_EXTERN v8::Local<v8::Value> UVException(v8::Isolate* isolate,
+                                             int errorno,
+                                             const char* syscall,
+                                             const char* message,
+                                             const char* path,
+                                             const char* dest);
 
 NODE_DEPRECATED("Use UVException(isolate, ...)",
                 inline v8::Local<v8::Value> ErrnoException(
@@ -184,7 +192,7 @@ NODE_EXTERN void RunAtExit(Environment* env);
 // Used to be a macro, hence the uppercase name.
 #define NODE_DEFINE_CONSTANT(target, constant)                                \
   do {                                                                        \
-    v8::Isolate* isolate = v8::Isolate::GetCurrent();                         \
+    v8::Isolate* isolate = target->GetIsolate();                              \
     v8::Local<v8::String> constant_name =                                     \
         v8::String::NewFromUtf8(isolate, #constant);                          \
     v8::Local<v8::Number> constant_value =                                    \
@@ -231,12 +239,12 @@ inline void NODE_SET_PROTOTYPE_METHOD(v8::Handle<v8::FunctionTemplate> recv,
 enum encoding {ASCII, UTF8, BASE64, UCS2, BINARY, HEX, BUFFER};
 enum encoding ParseEncoding(v8::Isolate* isolate,
                             v8::Handle<v8::Value> encoding_v,
-                            enum encoding _default = BINARY);
+                            enum encoding default_encoding = BINARY);
 NODE_DEPRECATED("Use ParseEncoding(isolate, ...)",
                 inline enum encoding ParseEncoding(
       v8::Handle<v8::Value> encoding_v,
-      enum encoding _default = BINARY) {
-  return ParseEncoding(v8::Isolate::GetCurrent(), encoding_v, _default);
+      enum encoding default_encoding = BINARY) {
+  return ParseEncoding(v8::Isolate::GetCurrent(), encoding_v, default_encoding);
 })
 
 NODE_EXTERN void FatalException(v8::Isolate* isolate,

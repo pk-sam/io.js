@@ -3,11 +3,12 @@
 
 #include "ares.h"
 #include "debug-agent.h"
+#include "handle_wrap.h"
+#include "req-wrap.h"
 #include "tree.h"
 #include "util.h"
 #include "uv.h"
 #include "v8.h"
-#include "queue.h"
 
 #include <stdint.h>
 
@@ -54,17 +55,19 @@ namespace node {
   V(bytes_parsed_string, "bytesParsed")                                       \
   V(callback_string, "callback")                                              \
   V(change_string, "change")                                                  \
-  V(close_string, "close")                                                    \
+  V(onclose_string, "_onclose")                                               \
   V(code_string, "code")                                                      \
   V(compare_string, "compare")                                                \
   V(ctime_string, "ctime")                                                    \
   V(cwd_string, "cwd")                                                        \
   V(debug_port_string, "debugPort")                                           \
   V(debug_string, "debug")                                                    \
+  V(dest_string, "dest")                                                      \
   V(detached_string, "detached")                                              \
   V(dev_string, "dev")                                                        \
   V(disposed_string, "_disposed")                                             \
   V(domain_string, "domain")                                                  \
+  V(domain_abort_uncaught_exc_string, "_makeCallbackAbortOnUncaught")         \
   V(exchange_string, "exchange")                                              \
   V(idle_string, "idle")                                                      \
   V(irq_string, "irq")                                                        \
@@ -105,6 +108,8 @@ namespace node {
   V(ipv4_string, "IPv4")                                                      \
   V(ipv6_lc_string, "ipv6")                                                   \
   V(ipv6_string, "IPv6")                                                      \
+  V(isalive_string, "isAlive")                                                \
+  V(isclosing_string, "isClosing")                                            \
   V(issuer_string, "issuer")                                                  \
   V(issuercert_string, "issuerCertificate")                                   \
   V(kill_signal_string, "killSignal")                                         \
@@ -139,9 +144,13 @@ namespace node {
   V(onnewsessiondone_string, "onnewsessiondone")                              \
   V(onocspresponse_string, "onocspresponse")                                  \
   V(onread_string, "onread")                                                  \
+  V(onreadstart_string, "onreadstart")                                        \
+  V(onreadstop_string, "onreadstop")                                          \
   V(onselect_string, "onselect")                                              \
+  V(onshutdown_string, "onshutdown")                                          \
   V(onsignal_string, "onsignal")                                              \
   V(onstop_string, "onstop")                                                  \
+  V(onwrite_string, "onwrite")                                                \
   V(output_string, "output")                                                  \
   V(order_string, "order")                                                    \
   V(owner_string, "owner")                                                    \
@@ -215,6 +224,7 @@ namespace node {
   V(zero_return_string, "ZERO_RETURN")                                        \
 
 #define ENVIRONMENT_STRONG_PERSISTENT_PROPERTIES(V)                           \
+  V(as_external, v8::External)                                                \
   V(async_hooks_init_function, v8::Function)                                  \
   V(async_hooks_pre_function, v8::Function)                                   \
   V(async_hooks_post_function, v8::Function)                                  \
@@ -223,17 +233,21 @@ namespace node {
   V(context, v8::Context)                                                     \
   V(domain_array, v8::Array)                                                  \
   V(fs_stats_constructor_function, v8::Function)                              \
+  V(jsstream_constructor_template, v8::FunctionTemplate)                      \
   V(module_load_list_array, v8::Array)                                        \
   V(pipe_constructor_template, v8::FunctionTemplate)                          \
   V(process_object, v8::Object)                                               \
+  V(promise_reject_function, v8::Function)                                    \
   V(script_context_constructor_template, v8::FunctionTemplate)                \
   V(script_data_constructor_function, v8::Function)                           \
   V(secure_context_constructor_template, v8::FunctionTemplate)                \
   V(tcp_constructor_template, v8::FunctionTemplate)                           \
   V(tick_callback_function, v8::Function)                                     \
   V(tls_wrap_constructor_function, v8::Function)                              \
+  V(tls_wrap_constructor_template, v8::FunctionTemplate)                      \
   V(tty_constructor_template, v8::FunctionTemplate)                           \
   V(udp_constructor_function, v8::Function)                                   \
+  V(write_wrap_constructor_function, v8::Function)                            \
 
 class Environment;
 
@@ -332,21 +346,22 @@ class Environment {
         : handle_(handle),
           cb_(cb),
           arg_(arg) {
-      QUEUE_INIT(&handle_cleanup_queue_);
     }
 
     uv_handle_t* handle_;
     HandleCleanupCb cb_;
     void* arg_;
-    QUEUE handle_cleanup_queue_;
+    ListNode<HandleCleanup> handle_cleanup_queue_;
   };
 
   static inline Environment* GetCurrent(v8::Isolate* isolate);
   static inline Environment* GetCurrent(v8::Local<v8::Context> context);
   static inline Environment* GetCurrent(
       const v8::FunctionCallbackInfo<v8::Value>& info);
+
+  template <typename T>
   static inline Environment* GetCurrent(
-      const v8::PropertyCallbackInfo<v8::Value>& info);
+      const v8::PropertyCallbackInfo<T>& info);
 
   // See CreateEnvironment() in src/node.cc.
   static inline Environment* New(v8::Local<v8::Context> context,
@@ -391,8 +406,14 @@ class Environment {
   inline bool using_smalloc_alloc_cb() const;
   inline void set_using_smalloc_alloc_cb(bool value);
 
+  inline bool using_abort_on_uncaught_exc() const;
+  inline void set_using_abort_on_uncaught_exc(bool value);
+
   inline bool using_domains() const;
   inline void set_using_domains(bool value);
+
+  inline bool using_asyncwrap() const;
+  inline void set_using_asyncwrap(bool value);
 
   inline bool printed_error() const;
   inline void set_printed_error(bool value);
@@ -407,7 +428,8 @@ class Environment {
   inline void ThrowUVException(int errorno,
                                const char* syscall = nullptr,
                                const char* message = nullptr,
-                               const char* path = nullptr);
+                               const char* path = nullptr,
+                               const char* dest = nullptr);
 
   // Convenience methods for contextify
   inline static void ThrowError(v8::Isolate* isolate, const char* errmsg);
@@ -448,8 +470,14 @@ class Environment {
     return &debugger_agent_;
   }
 
-  inline QUEUE* handle_wrap_queue() { return &handle_wrap_queue_; }
-  inline QUEUE* req_wrap_queue() { return &req_wrap_queue_; }
+  typedef ListHead<HandleWrap, &HandleWrap::handle_wrap_queue_> HandleWrapQueue;
+  typedef ListHead<ReqWrap<uv_req_t>, &ReqWrap<uv_req_t>::req_wrap_queue_>
+          ReqWrapQueue;
+
+  inline HandleWrapQueue* handle_wrap_queue() { return &handle_wrap_queue_; }
+  inline ReqWrapQueue* req_wrap_queue() { return &req_wrap_queue_; }
+
+  static const int kContextEmbedderDataIndex = NODE_CONTEXT_EMBEDDER_DATA_INDEX;
 
  private:
   static const int kIsolateSlot = NODE_ISOLATE_SLOT;
@@ -458,10 +486,6 @@ class Environment {
   inline Environment(v8::Local<v8::Context> context, uv_loop_t* loop);
   inline ~Environment();
   inline IsolateData* isolate_data() const;
-
-  enum ContextEmbedderDataIndex {
-    kContextEmbedderDataIndex = NODE_CONTEXT_EMBEDDER_DATA_INDEX
-  };
 
   v8::Isolate* const isolate_;
   IsolateData* const isolate_data_;
@@ -477,15 +501,16 @@ class Environment {
   ares_task_list cares_task_list_;
   bool using_smalloc_alloc_cb_;
   bool using_domains_;
+  bool using_abort_on_uncaught_exc_;
+  bool using_asyncwrap_;
   bool printed_error_;
   debugger::Agent debugger_agent_;
 
-  QUEUE handle_wrap_queue_;
-  QUEUE req_wrap_queue_;
-  QUEUE handle_cleanup_queue_;
+  HandleWrapQueue handle_wrap_queue_;
+  ReqWrapQueue req_wrap_queue_;
+  ListHead<HandleCleanup,
+           &HandleCleanup::handle_cleanup_queue_> handle_cleanup_queue_;
   int handle_cleanup_waiting_;
-
-  v8::Persistent<v8::External> external_;
 
 #define V(PropertyName, TypeName)                                             \
   v8::Persistent<TypeName> PropertyName ## _;

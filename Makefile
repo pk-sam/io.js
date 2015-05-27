@@ -68,8 +68,14 @@ distclean:
 	-rm -rf node_modules
 	-rm -rf deps/icu
 	-rm -rf deps/icu4c*.tgz deps/icu4c*.zip deps/icu-tmp
+	-rm -f $(BINARYTAR).* $(TARBALL).*
 
-test: all
+check: test
+
+cctest: all
+	@out/$(BUILDTYPE)/$@
+
+test: | cctest  # Depends on 'all'.
 	$(PYTHON) tools/test.py --mode=release message parallel sequential -J
 	$(MAKE) jslint
 	$(MAKE) cpplint
@@ -105,8 +111,10 @@ test-all: test-build test/gc/node_modules/weak/build/Release/weakref.node
 test-all-valgrind: test-build
 	$(PYTHON) tools/test.py --mode=debug,release --valgrind
 
-test-ci: test-build
-	$(PYTHON) tools/test.py -J parallel sequential message addons
+test-ci:
+	$(PYTHON) tools/test.py -p tap --logfile test.tap --mode=release message parallel sequential
+	$(MAKE) jslint
+	$(MAKE) cpplint
 
 test-release: test-build
 	$(PYTHON) tools/test.py --mode=release
@@ -117,10 +125,10 @@ test-debug: test-build
 test-message: test-build
 	$(PYTHON) tools/test.py message
 
-test-simple: all
+test-simple: | cctest  # Depends on 'all'.
 	$(PYTHON) tools/test.py parallel sequential
 
-test-pummel: all wrk
+test-pummel: all
 	$(PYTHON) tools/test.py pummel
 
 test-internet: all
@@ -173,9 +181,6 @@ $(apidoc_dirs):
 out/doc/api/assets/%: doc/api_assets/% out/doc/api/assets/
 	cp $< $@
 
-out/doc/changelog.html: CHANGELOG.md doc/changelog-head.html doc/changelog-foot.html tools/build-changelog.sh $(NODE_EXE)
-	bash tools/build-changelog.sh
-
 out/doc/%: doc/%
 	cp -r $< $@
 
@@ -184,13 +189,6 @@ out/doc/api/%.json: doc/api/%.markdown $(NODE_EXE)
 
 out/doc/api/%.html: doc/api/%.markdown $(NODE_EXE)
 	out/Release/$(NODE_EXE) tools/doc/generate.js --format=html --template=doc/template.html $< > $@
-
-email.md: CHANGELOG.md tools/email-footer.md
-	bash tools/changelog-head.sh | sed 's|^\* #|* \\#|g' > $@
-	cat tools/email-footer.md | sed -e 's|__VERSION__|'$(VERSION)'|g' >> $@
-
-blog.html: email.md
-	cat $< | ./$(NODE_EXE) tools/doc/node_modules/.bin/marked > $@
 
 docopen: out/doc/api/all.html
 	-google-chrome out/doc/api/all.html
@@ -201,7 +199,7 @@ docclean:
 RAWVER=$(shell $(PYTHON) tools/getnodeversion.py)
 VERSION=v$(RAWVER)
 FULLVERSION=$(VERSION)
-RELEASE=$(shell $(PYTHON) tools/getnodeisrelease.py)
+RELEASE=$(shell sed -ne 's/\#define NODE_VERSION_IS_RELEASE \([01]\)/\1/p' src/node_version.h)
 PLATFORM=$(shell uname | tr '[:upper:]' '[:lower:]')
 NPMVERSION=v$(shell cat deps/npm/package.json | grep '"version"' | sed 's/^[^:]*: "\([^"]*\)",.*/\1/')
 ifeq ($(findstring x86_64,$(shell uname -m)),x86_64)
@@ -227,8 +225,9 @@ TARBALL=$(TARNAME).tar
 BINARYNAME=$(TARNAME)-$(PLATFORM)-$(ARCH)
 BINARYTAR=$(BINARYNAME).tar
 XZ=$(shell which xz > /dev/null 2>&1; echo $$?)
+XZ_COMPRESSION ?= 9
 PKG=out/$(TARNAME).pkg
-packagemaker=/Developer/Applications/Utilities/PackageMaker.app/Contents/MacOS/PackageMaker
+PACKAGEMAKER ?= /Developer/Applications/Utilities/PackageMaker.app/Contents/MacOS/PackageMaker
 
 PKGSRC=iojs-$(DESTCPU)-$(RAWVER).tgz
 ifdef NIGHTLY
@@ -256,7 +255,7 @@ release-only:
 	else \
 	  echo "" >&2 ; \
 		echo "#NODE_VERSION_IS_RELEASE is set to $(RELEASE)." >&2 ; \
-	  echo "Did you remember to update src/node_version.cc?" >&2 ; \
+	  echo "Did you remember to update src/node_version.h?" >&2 ; \
 	  echo "" >&2 ; \
 		exit 1 ; \
 	fi
@@ -266,10 +265,10 @@ pkg: $(PKG)
 $(PKG): release-only
 	rm -rf $(PKGDIR)
 	rm -rf out/deps out/Release
-	$(PYTHON) ./configure --without-snapshot --dest-cpu=ia32 --tag=$(TAG)
+	$(PYTHON) ./configure --dest-cpu=ia32 --tag=$(TAG)
 	$(MAKE) install V=$(V) DESTDIR=$(PKGDIR)/32
 	rm -rf out/deps out/Release
-	$(PYTHON) ./configure --without-snapshot --dest-cpu=x64 --tag=$(TAG)
+	$(PYTHON) ./configure --dest-cpu=x64 --tag=$(TAG)
 	$(MAKE) install V=$(V) DESTDIR=$(PKGDIR)
 	SIGN="$(APP_SIGN)" PKGDIR="$(PKGDIR)" bash tools/osx-codesign.sh
 	lipo $(PKGDIR)/32/usr/local/bin/iojs \
@@ -279,26 +278,28 @@ $(PKG): release-only
 	mv $(PKGDIR)/usr/local/bin/iojs-universal $(PKGDIR)/usr/local/bin/iojs
 	rm -rf $(PKGDIR)/32
 	cat tools/osx-pkg.pmdoc/index.xml.tmpl | sed -e 's|__iojsversion__|'$(FULLVERSION)'|g' | sed -e 's|__npmversion__|'$(NPMVERSION)'|g' > tools/osx-pkg.pmdoc/index.xml
-	$(packagemaker) \
+	$(PACKAGEMAKER) \
 		--id "org.nodejs.Node" \
 		--doc tools/osx-pkg.pmdoc \
 		--out $(PKG)
 	SIGN="$(INT_SIGN)" PKG="$(PKG)" bash tools/osx-productsign.sh
 
 $(TARBALL): release-only $(NODE_EXE) doc
-	git archive --format=tar --prefix=$(TARNAME)/ HEAD | tar xf -
+	git checkout-index -a -f --prefix=$(TARNAME)/
 	mkdir -p $(TARNAME)/doc/api
 	cp doc/iojs.1 $(TARNAME)/doc/iojs.1
 	cp -r out/doc/api/* $(TARNAME)/doc/api/
-	rm -rf $(TARNAME)/deps/v8/test # too big
+	rm -rf $(TARNAME)/deps/v8/{test,samples,tools/profviz} # too big
 	rm -rf $(TARNAME)/doc/images # too big
+	rm -rf $(TARNAME)/deps/uv/{docs,samples,test}
+	rm -rf $(TARNAME)/deps/openssl/{doc,demos,test}
 	rm -rf $(TARNAME)/deps/zlib/contrib # too big, unused
 	find $(TARNAME)/ -type l | xargs rm # annoying on windows
 	tar -cf $(TARNAME).tar $(TARNAME)
 	rm -rf $(TARNAME)
 	gzip -c -f -9 $(TARNAME).tar > $(TARNAME).tar.gz
 ifeq ($(XZ), 0)
-	xz -c -f -9 $(TARNAME).tar > $(TARNAME).tar.xz
+	xz -c -f -$(XZ_COMPRESSION) $(TARNAME).tar > $(TARNAME).tar.xz
 endif
 	rm $(TARNAME).tar
 
@@ -307,7 +308,7 @@ tar: $(TARBALL)
 $(BINARYTAR): release-only
 	rm -rf $(BINARYNAME)
 	rm -rf out/deps out/Release
-	$(PYTHON) ./configure --prefix=/ --without-snapshot --dest-cpu=$(DESTCPU) --tag=$(TAG) $(CONFIG_FLAGS)
+	$(PYTHON) ./configure --prefix=/ --dest-cpu=$(DESTCPU) --tag=$(TAG) $(CONFIG_FLAGS)
 	$(MAKE) install DESTDIR=$(BINARYNAME) V=$(V) PORTABLE=1
 	cp README.md $(BINARYNAME)
 	cp LICENSE $(BINARYNAME)
@@ -316,7 +317,7 @@ $(BINARYTAR): release-only
 	rm -rf $(BINARYNAME)
 	gzip -c -f -9 $(BINARYNAME).tar > $(BINARYNAME).tar.gz
 ifeq ($(XZ), 0)
-	xz -c -f -9 $(BINARYNAME).tar > $(BINARYNAME).tar.xz
+	xz -c -f -$(XZ_COMPRESSION) $(BINARYNAME).tar > $(BINARYNAME).tar.xz
 endif
 	rm $(BINARYNAME).tar
 
@@ -324,7 +325,7 @@ binary: $(BINARYTAR)
 
 $(PKGSRC): release-only
 	rm -rf dist out
-	$(PYTHON) configure --prefix=/ --without-snapshot \
+	$(PYTHON) configure --prefix=/ \
 		--dest-cpu=$(DESTCPU) --tag=$(TAG) $(CONFIG_FLAGS)
 	$(MAKE) install DESTDIR=dist
 	(cd dist; find * -type f | sort) > packlist
@@ -335,13 +336,12 @@ $(PKGSRC): release-only
 
 pkgsrc: $(PKGSRC)
 
-wrkclean:
-	$(MAKE) -C tools/wrk/ clean
-	rm tools/wrk/wrk
-
-wrk: tools/wrk/wrk
-tools/wrk/wrk:
-	$(MAKE) -C tools/wrk/
+haswrk=$(shell which wrk > /dev/null 2>&1; echo $$?)
+wrk:
+ifneq ($(haswrk), 0)
+	@echo "please install wrk before proceeding. More information can be found in benchmark/README.md." >&2
+	@exit 1
+endif
 
 bench-net: all
 	@$(NODE) benchmark/common.js net
@@ -368,7 +368,13 @@ bench-array: all
 bench-buffer: all
 	@$(NODE) benchmark/common.js buffers
 
-bench-all: bench bench-misc bench-array bench-buffer
+bench-url: all
+	@$(NODE) benchmark/common.js url
+
+bench-events: all
+	@$(NODE) benchmark/common.js events
+
+bench-all: bench bench-misc bench-array bench-buffer bench-url bench-events
 
 bench: bench-net bench-http bench-fs bench-tls
 
@@ -387,9 +393,9 @@ jslint:
 	PYTHONPATH=tools/closure_linter/:tools/gflags/ $(PYTHON) tools/closure_linter/closure_linter/gjslint.py --unix_mode --strict --nojsdoc -r lib/ -r src/ --exclude_files lib/punycode.js
 
 CPPLINT_EXCLUDE ?=
-CPPLINT_EXCLUDE += src/node_dtrace.cc
-CPPLINT_EXCLUDE += src/node_dtrace.cc
+CPPLINT_EXCLUDE += src/node_lttng.cc
 CPPLINT_EXCLUDE += src/node_root_certs.h
+CPPLINT_EXCLUDE += src/node_lttng_tp.h
 CPPLINT_EXCLUDE += src/node_win32_perfctr_provider.cc
 CPPLINT_EXCLUDE += src/queue.h
 CPPLINT_EXCLUDE += src/tree.h
@@ -402,4 +408,9 @@ cpplint:
 
 lint: jslint cpplint
 
-.PHONY: lint cpplint jslint bench clean docopen docclean doc dist distclean check uninstall install install-includes install-bin all staticlib dynamiclib test test-all test-addons build-addons website-upload pkg blog blogclean tar binary release-only bench-http-simple bench-idle bench-all bench bench-misc bench-array bench-buffer bench-net bench-http bench-fs bench-tls
+.PHONY: lint cpplint jslint bench clean docopen docclean doc dist distclean \
+	check uninstall install install-includes install-bin all staticlib \
+	dynamiclib test test-all test-addons build-addons website-upload pkg \
+	blog blogclean tar binary release-only bench-http-simple bench-idle \
+	bench-all bench bench-misc bench-array bench-buffer bench-net \
+	bench-http bench-fs bench-tls cctest

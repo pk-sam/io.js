@@ -60,7 +60,7 @@ projects.  Do not send your patch to us, we cannot accept it.
 
 In case of doubt, open an issue in the
 [issue tracker](https://github.com/iojs/io.js/issues/) or contact one of the
-[project Collaborators](https://github.com/iojs/io.js/#Current-Project-Team-Members)
+[project Collaborators](https://github.com/iojs/io.js/#current-project-team-members)
 ([IRC](http://webchat.freenode.net/?channels=io.js) is often the best medium.)Especially do so if you plan to work on something big.  Nothing is more
 frustrating than seeing your hard work go to waste because your vision
 does not align with the project team.
@@ -130,7 +130,7 @@ $ git rebase upstream/v1.x  # or upstream/master
 ### Step 5: Test
 
 Bug fixes and features **should come with tests**.  Add your tests in the
-test/simple/ directory.  Look at other tests to see how they should be
+test/parallel/ directory.  Look at other tests to see how they should be
 structured (license boilerplate, common includes, etc.).
 
 ```text
@@ -144,13 +144,13 @@ If you are updating tests and just want to run a single test to check it, you
 can use this syntax to run it exactly as the test harness would:
 
 ```text
-$ python tools/test.py -v --mode=release simple/test-stream2-transform
+$ python tools/test.py -v --mode=release parallel/test-stream2-transform
 ```
 
 You can run tests directly with node:
 
 ```text
-$ node ./test/simple/test-streams2-transform.js
+$ node ./test/parallel/test-streams2-transform.js
 ```
 
 
@@ -189,7 +189,7 @@ By making a contribution to this project, I certify that:
 ## Code of Conduct
 
 This Code of Conduct is adapted from [Rust's wonderful
-CoC](https://github.com/rust-lang/rust/wiki/Note-development-policy#conduct).
+CoC](http://www.rust-lang.org/conduct.html).
 
 * We are committed to providing a friendly, safe and welcoming
   environment for all, regardless of gender, sexual orientation,
@@ -222,55 +222,3 @@ CoC](https://github.com/rust-lang/rust/wiki/Note-development-policy#conduct).
 * Avoid the use of personal pronouns in code comments or
   documentation. There is no need to address persons when explaining
   code (e.g. "When the developer")
-
-
-## Caine's Requirements
-
-Hello!
-
-I am pleased to see your valuable contribution to this project. Would you
-please mind answering a couple of questions to help me classify this submission
-and/or gather required information for the core team members?
-
-### Questions:
-
-* _Issue-only_ Does this issue happen in core, or in some user-space
-  module from npm or other source? Please ensure that the test case
-  that reproduces this problem is not using any external dependencies.
-  If the error is not reproducible with just core modules - it is most
-  likely not a io.js problem. _Expected: `yes`_
-* Which part of core do you think it might be related to?
-  _One of: `debugger, http, assert, buffer, child_process, cluster, crypto,
-  dgram, dns, domain, events, fs, http, https, module, net, os, path,
-  querystring, readline, repl, smalloc, stream, timers, tls, url, util, vm,
-  zlib, c++, docs, other`_ (_label_)
-* Which versions of io.js do you think are affected by this?
-  _One of: `v0.10, v0.12, v1.0.0`_ (_label_)
-* _PR-only_ Does `make test` pass after applying this Pull Request.
-  _Expected: `yes`_
-* _PR-only_ Is the commit message properly formatted? (See
-  CONTRIBUTING.md for more information)
-  _Expected: `yes`_
-
-Please provide the answers in an ordered list like this:
-
-1. Answer for the first question
-2. Answer for the second question
-3. ...
-
-Note that I am just a bot with a limited human-reply parsing abilities,
-so please be very careful with numbers and don't skip the questions!
-
-_In case of success I will say:_ `...summoning the core team devs!`.
-
-_In case of validation problem I will say:_ `Sorry, but something is not right
-here:`.
-
-Truly yours,
-Caine.
-
-### Responsibilities
-
-* indutny: crypto, tls, https, child_process, c++
-* trevnorris: buffer, http, https, smalloc
-* bnoordhuis: http, cluster, child_process, dgram

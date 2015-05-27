@@ -3,7 +3,8 @@
 #include "env-inl.h"
 #include "node_buffer.h"
 #include "handle_wrap.h"
-#include "req_wrap.h"
+#include "req-wrap.h"
+#include "req-wrap-inl.h"
 #include "util.h"
 #include "util-inl.h"
 
@@ -83,7 +84,7 @@ void UDPWrap::Initialize(Handle<Object> target,
   t->InstanceTemplate()->SetAccessor(env->fd_string(),
                                      UDPWrap::GetFD,
                                      nullptr,
-                                     Handle<Value>(),
+                                     env->as_external(),
                                      v8::DEFAULT,
                                      attributes);
 

@@ -195,6 +195,7 @@
           'cflags': [ '-Wstrict-aliasing' ],
         }],
         [ 'OS=="linux"', {
+          'defines': [ '_GNU_SOURCE' ],
           'sources': [
             'src/unix/linux-core.c',
             'src/unix/linux-inotify.c',
@@ -328,6 +329,7 @@
         'test/test-pipe-sendmsg.c',
         'test/test-pipe-server-close.c',
         'test/test-pipe-close-stdout-read-stdin.c',
+        'test/test-pipe-set-non-blocking.c',
         'test/test-platform-output.c',
         'test/test-poll.c',
         'test/test-poll-close.c',
@@ -364,6 +366,7 @@
         'test/test-tcp-writealot.c',
         'test/test-tcp-try-write.c',
         'test/test-tcp-unexpected-read.c',
+        'test/test-tcp-oob.c',
         'test/test-tcp-read-stop.c',
         'test/test-tcp-write-queue-order.c',
         'test/test-threadpool.c',

@@ -6,7 +6,6 @@
 #include "util.h"
 #include "util-inl.h"
 #include "node.h"
-#include "queue.h"
 
 namespace node {
 
@@ -53,7 +52,7 @@ void HandleWrap::Close(const FunctionCallbackInfo<Value>& args) {
   wrap->handle__ = nullptr;
 
   if (args[0]->IsFunction()) {
-    wrap->object()->Set(env->close_string(), args[0]);
+    wrap->object()->Set(env->onclose_string(), args[0]);
     wrap->flags_ |= kCloseCallback;
   }
 }
@@ -70,13 +69,12 @@ HandleWrap::HandleWrap(Environment* env,
   handle__->data = this;
   HandleScope scope(env->isolate());
   Wrap(object, this);
-  QUEUE_INSERT_TAIL(env->handle_wrap_queue(), &handle_wrap_queue_);
+  env->handle_wrap_queue()->PushBack(this);
 }
 
 
 HandleWrap::~HandleWrap() {
   CHECK(persistent().IsEmpty());
-  QUEUE_REMOVE(&handle_wrap_queue_);
 }
 
 
@@ -96,7 +94,7 @@ void HandleWrap::OnClose(uv_handle_t* handle) {
   Local<Object> object = wrap->object();
 
   if (wrap->flags_ & kCloseCallback) {
-    wrap->MakeCallback(env->close_string(), 0, nullptr);
+    wrap->MakeCallback(env->onclose_string(), 0, nullptr);
   }
 
   object->SetAlignedPointerInInternalField(0, nullptr);

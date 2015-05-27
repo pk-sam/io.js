@@ -1,10 +1,10 @@
 # net
 
-    Stability: 3 - Stable
+    Stability: 2 - Stable
 
 The `net` module provides you with an asynchronous network wrapper. It contains
-methods for creating both servers and clients (called streams). You can include
-this module with `require('net');`
+functions for creating both servers and clients (called streams). You can include
+this module with `require('net');`.
 
 ## net.createServer([options][, connectionListener])
 
@@ -60,40 +60,17 @@ Use `nc` to connect to a UNIX domain socket server:
 ## net.connect(options[, connectionListener])
 ## net.createConnection(options[, connectionListener])
 
-A factory method, which returns a new ['net.Socket'](#net_class_net_socket)
-and connects to the supplied address and port.
+A factory function, which returns a new ['net.Socket'](#net_class_net_socket)
+and automatically connects with the supplied `options`.
 
-When the socket is established, the ['connect'][] event will be emitted.
-
-Has the same events as ['net.Socket'](#net_class_net_socket).
-
-For TCP sockets, `options` argument should be an object which specifies:
-
-  - `port`: Port the client should connect to (Required).
-
-  - `host`: Host the client should connect to. Defaults to `'localhost'`.
-
-  - `localAddress`: Local interface to bind to for network connections.
-
-  - `localPort`: Local port to bind to for network connections.
-
-  - `family` : Version of IP stack. Defaults to `4`.
-
-For local domain sockets, `options` argument should be an object which
-specifies:
-
-  - `path`: Path the client should connect to (Required).
-
-Common options are:
-
-  - `allowHalfOpen`: if `true`, the socket won't automatically send
-    a FIN packet when the other end of the socket sends a FIN packet.
-    Defaults to `false`.  See ['end'][] event for more information.
+The options are passed to both the ['net.Socket'](#net_class_net_socket)
+constructor and the ['socket.connect'](#net_socket_connect_options_connectlistener)
+method.
 
 The `connectListener` parameter will be added as an listener for the
 ['connect'][] event.
 
-Here is an example of a client of echo server as described previously:
+Here is an example of a client of the previously described echo server:
 
     var net = require('net');
     var client = net.connect({port: 8124},
@@ -117,31 +94,35 @@ changed to
 ## net.connect(port[, host][, connectListener])
 ## net.createConnection(port[, host][, connectListener])
 
-Creates a TCP connection to `port` on `host`. If `host` is omitted,
-`'localhost'` will be assumed.
+A factory function, which returns a new
+['net.Socket'](#net_class_net_socket) and automatically connects to the
+supplied `port` and `host`.
+
+If `host` is omitted, `'localhost'` will be assumed.
+
 The `connectListener` parameter will be added as an listener for the
 ['connect'][] event.
-
-Is a factory method which returns a new ['net.Socket'](#net_class_net_socket).
 
 ## net.connect(path[, connectListener])
 ## net.createConnection(path[, connectListener])
 
-Creates unix socket connection to `path`.
+A factory function, which returns a new unix
+['net.Socket'](#net_class_net_socket) and automatically connects to the
+supplied `path`.
+
 The `connectListener` parameter will be added as an listener for the
 ['connect'][] event.
-
-A factory method which returns a new ['net.Socket'](#net_class_net_socket).
 
 ## Class: net.Server
 
 This class is used to create a TCP or local server.
 
-### server.listen(port[, host][, backlog][, callback])
+### server.listen(port[, hostname][, backlog][, callback])
 
-Begin accepting connections on the specified `port` and `host`.  If the
-`host` is omitted, the server will accept connections directed to any
-IPv4 address (`INADDR_ANY`). A port value of zero will assign a random port.
+Begin accepting connections on the specified `port` and `hostname`. If the
+`hostname` is omitted, the server will accept connections on any IPv6 address
+(`::`) when IPv6 is available, or any IPv4 address (`0.0.0.0`) otherwise. A
+port value of zero will assign a random port.
 
 Backlog is the maximum length of the queue of pending connections.
 The actual length will be determined by your OS through sysctl settings such as
@@ -166,7 +147,7 @@ would be to wait a second and then try again. This can be done with
       }
     });
 
-(Note: All sockets in Node set `SO_REUSEADDR` already)
+(Note: All sockets in io.js set `SO_REUSEADDR` already)
 
 
 ### server.listen(path[, callback])
@@ -178,7 +159,7 @@ Start a local socket server listening for connections on the given `path`.
 
 This function is asynchronous.  When the server has been bound,
 ['listening'][] event will be emitted.  The last parameter `callback`
-will be added as an listener for the ['listening'][] event.
+will be added as a listener for the ['listening'][] event.
 
 On UNIX, the local domain is usually known as the UNIX domain. The path is a
 filesystem path name. It is subject to the same naming conventions and
@@ -339,7 +320,7 @@ following this event.  See example in discussion of `server.listen`.
 
 This object is an abstraction of a TCP or local socket.  `net.Socket`
 instances implement a duplex Stream interface.  They can be created by the
-user and used as a client (with `connect()`) or they can be created by Node
+user and used as a client (with `connect()`) or they can be created by io.js
 and passed to the user through the `'connection'` event of a server.
 
 ### new net.Socket([options])
@@ -359,13 +340,26 @@ Set `readable` and/or `writable` to `true` to allow reads and/or writes on this
 socket (NOTE: Works only when `fd` is passed).
 About `allowHalfOpen`, refer to `createServer()` and `'end'` event.
 
-### socket.connect(port[, host][, connectListener])
-### socket.connect(path[, connectListener])
+### socket.connect(options[, connectListener])
 
-Opens the connection for a given socket. If `port` and `host` are given,
-then the socket will be opened as a TCP socket, if `host` is omitted,
-`localhost` will be assumed. If a `path` is given, the socket will be
-opened as a unix socket to that path.
+Opens the connection for a given socket.
+
+For TCP sockets, `options` argument should be an object which specifies:
+
+  - `port`: Port the client should connect to (Required).
+
+  - `host`: Host the client should connect to. Defaults to `'localhost'`.
+
+  - `localAddress`: Local interface to bind to for network connections.
+
+  - `localPort`: Local port to bind to for network connections.
+
+  - `family` : Version of IP stack. Defaults to `4`.
+
+For local domain sockets, `options` argument should be an object which
+specifies:
+
+  - `path`: Path the client should connect to (Required).
 
 Normally this method is not needed, as `net.createConnection` opens the
 socket. Use this only if you are implementing a custom Socket.
@@ -377,13 +371,18 @@ will not be emitted, the `'error'` event will be emitted with the exception.
 The `connectListener` parameter will be added as an listener for the
 ['connect'][] event.
 
+### socket.connect(port[, host][, connectListener])
+### socket.connect(path[, connectListener])
+
+As [socket.connect(options[, connectListener])](#net_socket_connect_options_connectlistener),
+with options either as either `{port: port, host: host}` or `{path: path}`.
 
 ### socket.bufferSize
 
 `net.Socket` has the property that `socket.write()` always works. This is to
 help users get up and running quickly. The computer cannot always keep up
 with the amount of data that is written to a socket - the network connection
-simply might be too slow. Node will internally queue up the data written to a
+simply might be too slow. io.js will internally queue up the data written to a
 socket and send it out over the wire when it is possible. (Internally it is
 polling on the socket's file descriptor for being writable).
 

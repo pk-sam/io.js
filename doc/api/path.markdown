@@ -1,6 +1,6 @@
 # Path
 
-    Stability: 3 - Stable
+    Stability: 2 - Stable
 
 This module contains utilities for handling and transforming file
 paths.  Almost all these methods perform only string transformations.
@@ -75,8 +75,8 @@ Examples:
     '/tmp/file'
 
     path.resolve('wwwroot', 'static_files/png/', '../gif/image.gif')
-    // if currently in /home/myself/node, it returns
-    '/home/myself/node/wwwroot/static_files/gif/image.gif'
+    // if currently in /home/myself/iojs, it returns
+    '/home/myself/iojs/wwwroot/static_files/gif/image.gif'
 
 ## path.isAbsolute(path)
 
@@ -196,11 +196,11 @@ An example on *nix:
 An example on Windows:
 
     console.log(process.env.PATH)
-    // 'C:\Windows\system32;C:\Windows;C:\Program Files\nodejs\'
+    // 'C:\Windows\system32;C:\Windows;C:\Program Files\iojs\'
 
     process.env.PATH.split(path.delimiter)
     // returns
-    ['C:\Windows\system32', 'C:\Windows', 'C:\Program Files\nodejs\']
+    ['C:\\Windows\\system32', 'C:\\Windows', 'C:\\Program Files\\iojs\\']
 
 ## path.parse(pathString)
 
@@ -223,8 +223,8 @@ An example on Windows:
     path.parse('C:\\path\\dir\\index.html')
     // returns
     {
-        root : "C:\",
-        dir : "C:\path\dir",
+        root : "C:\\",
+        dir : "C:\\path\\dir",
         base : "index.html",
         ext : ".html",
         name : "index"

@@ -1,6 +1,6 @@
 # UDP / Datagram Sockets
 
-    Stability: 3 - Stable
+    Stability: 2 - Stable
 
 <!-- name=dgram -->
 
@@ -46,7 +46,7 @@ with `socket.address().address` and `socket.address().port`.
 The `options` object should contain a `type` field of either `udp4` or `udp6`
 and an optional boolean `reuseAddr` field.
 
-When `reuseAddr` is true `socket.bind()` will reuse the address, even if
+When `reuseAddr` is `true` `socket.bind()` will reuse the address, even if
 another process has already bound a socket on it. `reuseAddr` defaults to
 `false`.
 
@@ -170,7 +170,7 @@ and the `callback`(if specified) is called. Specifying both a
 "listening" event listener and `callback` is not harmful but not very
 useful.
 
-A bound datagram socket keeps the node process running to receive
+A bound datagram socket keeps the io.js process running to receive
 datagrams.
 
 If binding fails, an "error" event is generated. In rare case (e.g.

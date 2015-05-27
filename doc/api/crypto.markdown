@@ -1,7 +1,6 @@
 # Crypto
 
-    Stability: 2 - Unstable; API changes are being discussed for
-    future versions.  Breaking changes will be minimized.  See below.
+    Stability: 2 - Stable
 
 Use `require('crypto')` to access this module.
 
@@ -16,7 +15,7 @@ decipher, sign and verify methods.
 
 Load and set engine for some/all OpenSSL functions (selected by flags).
 
-`engine` could be either an id or a path to the to the engine's shared library.
+`engine` could be either an id or a path to the engine's shared library.
 
 `flags` is optional and has `ENGINE_METHOD_ALL` value by default. It could take
 one of or mix of following flags (defined in `constants` module):
@@ -77,7 +76,7 @@ dictionary with keys:
   <http://www.openssl.org/docs/apps/ciphers.html#CIPHER_LIST_FORMAT>
   for details on the format.
 
-If no 'ca' details are given, then node.js will use the default
+If no 'ca' details are given, then io.js will use the default
 publicly trusted list of CAs as given in
 <http://mxr.mozilla.org/mozilla/source/security/nss/lib/ckfw/builtins/certdata.txt>.
 
@@ -647,20 +646,10 @@ Generates cryptographically strong pseudo-random data. Usage:
       // most likely, entropy sources are drained
     }
 
-NOTE: Will throw error or invoke callback with error, if there is not enough
-accumulated entropy to generate cryptographically strong data. In other words,
-`crypto.randomBytes` without callback will not block even if all entropy sources
-are drained.
-
-## crypto.pseudoRandomBytes(size[, callback])
-
-Generates *non*-cryptographically strong pseudo-random data. The data
-returned will be unique if it is sufficiently long, but is not
-necessarily unpredictable. For this reason, the output of this
-function should never be used where unpredictability is important,
-such as in the generation of encryption keys.
-
-Usage is otherwise identical to `crypto.randomBytes`.
+NOTE: This will block if there is insufficient entropy, although it should
+normally never take longer than a few milliseconds. The only time when this
+may conceivably block is right after boot, when the whole system is still
+low on entropy.
 
 ## Class: Certificate
 
@@ -688,16 +677,24 @@ Encrypts `buffer` with `public_key`. Only RSA is currently supported.
 
 `public_key` can be an object or a string. If `public_key` is a string, it is
 treated as the key with no passphrase and will use `RSA_PKCS1_OAEP_PADDING`.
+Since RSA public keys may be derived from private keys you may pass a private
+key to this method.
 
 `public_key`:
 
 * `key` : A string holding the PEM encoded private key
+* `passphrase` : An optional string of passphrase for the private key
 * `padding` : An optional padding value, one of the following:
   * `constants.RSA_NO_PADDING`
   * `constants.RSA_PKCS1_PADDING`
   * `constants.RSA_PKCS1_OAEP_PADDING`
 
 NOTE: All paddings are defined in `constants` module.
+
+## crypto.publicDecrypt(public_key, buffer)
+
+See above for details. Has the same API as `crypto.publicEncrypt`. Default
+padding is `RSA_PKCS1_PADDING`.
 
 ## crypto.privateDecrypt(private_key, buffer)
 
@@ -717,6 +714,11 @@ treated as the key with no passphrase and will use `RSA_PKCS1_OAEP_PADDING`.
 
 NOTE: All paddings are defined in `constants` module.
 
+## crypto.privateEncrypt(private_key, buffer)
+
+See above for details. Has the same API as `crypto.privateDecrypt`.
+Default padding is `RSA_PKCS1_PADDING`.
+
 ## crypto.DEFAULT_ENCODING
 
 The default encoding to use for functions that can take either strings
@@ -730,12 +732,12 @@ as a temporary measure.
 
 ## Recent API Changes
 
-The Crypto module was added to Node before there was the concept of a
+The Crypto module was added to Node.js before there was the concept of a
 unified Stream API, and before there were Buffer objects for handling
 binary data.
 
 As such, the streaming classes don't have the typical methods found on
-other Node classes, and many methods accepted and returned
+other io.js classes, and many methods accepted and returned
 Binary-encoded strings by default rather than Buffers.  This was
 changed to use Buffers by default instead.
 

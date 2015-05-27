@@ -23,6 +23,13 @@ function whoami (args, silent, cb) {
     else if (auth.token) {
       return npm.registry.whoami(registry, { auth : auth }, function (er, username) {
         if (er) return cb(er)
+        if (!username) {
+          var needNewSession = new Error(
+            "Your auth token is no longer valid. Please log in again."
+          )
+          needNewSession.code = 'ENEEDAUTH'
+          return cb(needNewSession)
+        }
 
         if (!silent) console.log(username)
         cb(null, username)
@@ -30,10 +37,11 @@ function whoami (args, silent, cb) {
     }
   }
 
-  // At this point, if they have a credentials object, it doesn't
-  // have a token or auth in it.  Probably just the default
-  // registry.
-  var msg = "Not authed.  Run 'npm adduser'"
-  if (!silent) console.log(msg)
-  process.nextTick(cb.bind(this, null, msg))
+  // At this point, if they have a credentials object, it doesn't have a token
+  // or auth in it.  Probably just the default registry.
+  var needAuth = new Error(
+    "'npm whoami' requires you to be logged in."
+  )
+  needAuth.code = 'ENEEDAUTH'
+  process.nextTick(cb.bind(this, needAuth))
 }

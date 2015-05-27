@@ -19,7 +19,7 @@
 # IN THE SOFTWARE.
 
 PLATFORM ?= $(shell sh -c 'uname -s | tr "[A-Z]" "[a-z]"')
-SONAME ?= libhttp_parser.so.2.4.1
+SONAME ?= libhttp_parser.so.2.5.0
 
 CC?=gcc
 AR?=ar
@@ -41,6 +41,11 @@ CFLAGS_BENCH = $(CFLAGS_FAST) -Wno-unused-parameter
 CFLAGS_LIB = $(CFLAGS_FAST) -fPIC
 
 LDFLAGS_LIB = $(LDFLAGS) -shared
+
+INSTALL ?= install
+PREFIX ?= $(DESTDIR)/usr/local
+LIBDIR = $(PREFIX)/lib
+INCLUDEDIR = $(PREFIX)/include
 
 ifneq (darwin,$(PLATFORM))
 # TODO(bnoordhuis) The native SunOS linker expects -h rather than -soname...
@@ -105,6 +110,21 @@ parsertrace_g: http_parser_g.o contrib/parsertrace.c
 tags: http_parser.c http_parser.h test.c
 	ctags $^
 
+install: library
+	$(INSTALL) -D  http_parser.h $(INCLUDEDIR)/http_parser.h
+	$(INSTALL) -D $(SONAME) $(LIBDIR)/$(SONAME)
+	ln -s $(LIBDIR)/$(SONAME) $(LIBDIR)/libhttp_parser.so
+
+install-strip: library
+	$(INSTALL) -D  http_parser.h $(INCLUDEDIR)/http_parser.h
+	$(INSTALL) -D -s $(SONAME) $(LIBDIR)/$(SONAME)
+	ln -s $(LIBDIR)/$(SONAME) $(LIBDIR)/libhttp_parser.so
+
+uninstall:
+	rm $(INCLUDEDIR)/http_parser.h
+	rm $(LIBDIR)/$(SONAME)
+	rm $(LIBDIR)/libhttp_parser.so
+
 clean:
 	rm -f *.o *.a tags test test_fast test_g \
 		http_parser.tar libhttp_parser.so.* \
@@ -113,4 +133,4 @@ clean:
 contrib/url_parser.c:	http_parser.h
 contrib/parsertrace.c:	http_parser.h
 
-.PHONY: clean package test-run test-run-timed test-valgrind
+.PHONY: clean package test-run test-run-timed test-valgrind install install-strip uninstall

@@ -11,9 +11,6 @@ if (typeof WScript !== "undefined") {
 }
 
 
-// monkey-patch support for 0.6 child processes
-require('child-process-close')
-
 var EventEmitter = require("events").EventEmitter
   , npm = module.exports = new EventEmitter()
   , npmconf = require("./config/core.js")
@@ -66,7 +63,9 @@ var commandCache = {}
               , "i" : "install"
               , "isntall" : "install"
               , "up" : "update"
+              , "upgrade" : "update"
               , "c" : "config"
+              , "dist-tags" : "dist-tag"
               , "info" : "view"
               , "show" : "view"
               , "find" : "search"
@@ -109,8 +108,10 @@ var commandCache = {}
               , "stars"
               , "tag"
               , "adduser"
+              , "logout"
               , "unpublish"
               , "owner"
+              , "access"
               , "deprecate"
               , "shrinkwrap"
 
@@ -131,6 +132,7 @@ var commandCache = {}
               , "prefix"
               , "bin"
               , "whoami"
+              , "dist-tag"
 
               , "test"
               , "stop"
@@ -220,7 +222,7 @@ Object.keys(abbrevs).concat(plumbing).forEach(function addCommand (c) {
     })
 
     return commandCache[a]
-  }, enumerable: fullList.indexOf(c) !== -1 })
+  }, enumerable: fullList.indexOf(c) !== -1, configurable: true })
 
   // make css-case commands callable via camelCase as well
   if (c.match(/\-([a-z])/)) {

@@ -1,10 +1,10 @@
 # Buffer
 
-    Stability: 3 - Stable
+    Stability: 2 - Stable
 
 Pure JavaScript is Unicode friendly but not nice to binary data.  When
 dealing with TCP streams or the file system, it's necessary to handle octet
-streams. Node has several strategies for manipulating, creating, and
+streams. io.js has several strategies for manipulating, creating, and
 consuming octet streams.
 
 Raw data is stored in instances of the `Buffer` class. A `Buffer` is similar
@@ -33,7 +33,7 @@ encoding method.  Here are the different string encodings.
 * `'binary'` - A way of encoding raw binary data into strings by using only
   the first 8 bits of each character. This encoding method is deprecated and
   should be avoided in favor of `Buffer` objects where possible. This encoding
-  will be removed in future versions of Node.
+  will be removed in future versions of io.js.
 
 * `'hex'` - Encode each byte as two hexadecimal characters.
 
@@ -295,7 +295,7 @@ so the legal range is between `0x00` and `0xFF` hex or `0` and `255`.
 
 Example: copy an ASCII string into a buffer, one byte at a time:
 
-    str = "node.js";
+    str = "io.js";
     buf = new Buffer(str.length);
 
     for (var i = 0; i < str.length ; i++) {
@@ -304,7 +304,7 @@ Example: copy an ASCII string into a buffer, one byte at a time:
 
     console.log(buf);
 
-    // node.js
+    // io.js
 
 ### buf.equals(otherBuffer)
 
@@ -391,6 +391,19 @@ byte from the original Buffer.
 
     // abc
     // !bc
+
+
+### buf.indexOf(value[, byteOffset])
+
+* `value` String, Buffer or Number
+* `byteOffset` Number, Optional, Default: 0
+* Return: Number
+
+Operates similar to
+[Array#indexOf()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/indexOf).
+Accepts a String, Buffer or Number. Strings are interpreted as UTF8. Buffers
+will use the entire buffer. So in order to compare a partial Buffer use
+`Buffer#slice()`. Numbers can range from 0 to 255.
 
 ### buf.readUInt8(offset[, noAssert])
 
@@ -797,6 +810,19 @@ buffer.
     var b = new Buffer(50);
     b.fill("h");
 
+### buffer.values()
+
+Creates iterator for buffer values (bytes). This function is called automatically
+when `buffer` is used in a `for..of` statement.
+
+### buffer.keys()
+
+Creates iterator for buffer keys (indices).
+
+### buffer.entries()
+
+Creates iterator for `[index, byte]` arrays.
+
 ## buffer.INSPECT_MAX_BYTES
 
 * Number, Default: 50
@@ -806,6 +832,22 @@ be overridden by user modules.
 
 Note that this is a property on the buffer module returned by
 `require('buffer')`, not on the Buffer global, or a buffer instance.
+
+## ES6 iteration
+
+Buffers can be iterated over using `for..of` syntax:
+
+    var buf = new Buffer([1, 2, 3]);
+
+    for (var b of buf)
+      console.log(b)
+
+    // 1
+    // 2
+    // 3
+
+Additionally, `buffer.values()`, `buffer.keys()` and `buffer.entries()`
+methods can be used to create iterators.
 
 ## Class: SlowBuffer
 
@@ -832,5 +874,5 @@ un-pooled Buffer instance using SlowBuffer and copy out the relevant bits.
       store.push(sb);
     });
 
-Though this should used sparingly and only be a last resort *after* a developer
+Though this should be used sparingly and only be a last resort *after* a developer
 has actively observed undue memory retention in their applications.

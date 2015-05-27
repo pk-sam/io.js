@@ -1,10 +1,10 @@
 # HTTP
 
-    Stability: 3 - Stable
+    Stability: 2 - Stable
 
 To use the HTTP server and client one must `require('http')`.
 
-The HTTP interfaces in Node are designed to support many features
+The HTTP interfaces in io.js are designed to support many features
 of the protocol which have been traditionally difficult to use.
 In particular, large, possibly chunk-encoded, messages. The interface is
 careful to never buffer entire requests or responses--the
@@ -20,7 +20,7 @@ HTTP message headers are represented by an object like this:
 
 Keys are lowercased. Values are not modified.
 
-In order to support the full spectrum of possible HTTP applications, Node's
+In order to support the full spectrum of possible HTTP applications, io.js's
 HTTP API is very low-level. It deals with stream handling and message
 parsing only. It parses a message into headers and body but it does not
 parse the actual headers or the body.
@@ -162,9 +162,10 @@ If a client connection emits an 'error' event, it will be forwarded here.
 
 ### server.listen(port[, hostname][, backlog][, callback])
 
-Begin accepting connections on the specified port and hostname.  If the
-hostname is omitted, the server will accept connections directed to any
-IPv4 address (`INADDR_ANY`).
+Begin accepting connections on the specified `port` and `hostname`. If the
+`hostname` is omitted, the server will accept connections on any IPv6 address
+(`::`) when IPv6 is available, or any IPv4 address (`0.0.0.0`) otherwise. A
+port value of zero will assign a random port.
 
 To listen to a unix socket, supply a filename instead of port and hostname.
 
@@ -299,7 +300,7 @@ Note that Content-Length is given in bytes not characters. The above example
 works because the string `'hello world'` contains only single byte characters.
 If the body contains higher coded characters then `Buffer.byteLength()`
 should be used to determine the number of bytes in a given encoding.
-And Node does not check whether Content-Length and the length of the body
+And io.js does not check whether Content-Length and the length of the body
 which has been transmitted are equal or not.
 
 ### response.setTimeout(msecs, callback)
@@ -407,7 +408,7 @@ higher-level multi-part body encodings that may be used.
 
 The first time `response.write()` is called, it will send the buffered
 header information and the first body to the client. The second time
-`response.write()` is called, Node assumes you're going to be streaming
+`response.write()` is called, io.js assumes you're going to be streaming
 data, and sends that separately. That is, the response is buffered up to the
 first chunk of body.
 
@@ -449,7 +450,7 @@ is finished.
 
 ## http.request(options[, callback])
 
-Node maintains several connections per server to make HTTP requests.
+io.js maintains several connections per server to make HTTP requests.
 This function allows one to transparently issue requests.
 
 `options` can be an object or a string. If `options` is a string, it is
@@ -477,11 +478,6 @@ Options:
  - `Agent` object: explicitly use the passed in `Agent`.
  - `false`: opts out of connection pooling with an Agent, defaults request to
    `Connection: close`.
-- `keepAlive`: {Boolean} Keep sockets around in a pool to be used
-  by other requests in the future. Default = `false`
-- `keepAliveMsecs`: {Integer} When using HTTP KeepAlive, how often to
-  send TCP KeepAlive packets over sockets being kept alive.  Default =
-  `1000`.  Only relevant if `keepAlive` is set to `true`.
 
 The optional `callback` parameter will be added as a one time listener for
 the ['response'][] event.
@@ -537,7 +533,7 @@ on the returned request object.
 
 There are a few special headers that should be noted.
 
-* Sending a 'Connection: keep-alive' will notify Node that the connection to
+* Sending a 'Connection: keep-alive' will notify io.js that the connection to
   the server should be persisted until the next request.
 
 * Sending a 'Content-length' header will disable the default chunked encoding.
@@ -552,7 +548,7 @@ There are a few special headers that should be noted.
 
 ## http.get(options[, callback])
 
-Since most requests are GET requests without bodies, Node provides this
+Since most requests are GET requests without bodies, io.js provides this
 convenience method. The only difference between this method and `http.request()`
 is that it sets the method to GET and calls `req.end()` automatically.
 
@@ -572,7 +568,7 @@ requests.
 
 The HTTP Agent also defaults client requests to using
 Connection:keep-alive. If no pending HTTP requests are waiting on a
-socket to become free the socket is closed. This means that Node's
+socket to become free the socket is closed. This means that io.js's
 pool has the benefit of keep-alive when under load but still does not
 require developers to manually close the HTTP clients using
 KeepAlive.
@@ -581,7 +577,7 @@ If you opt into using HTTP KeepAlive, you can create an Agent object
 with that flag set to `true`.  (See the [constructor
 options](#http_new_agent_options) below.)  Then, the Agent will keep
 unused sockets in a pool for later use.  They will be explicitly
-marked so as to not keep the Node process running.  However, it is
+marked so as to not keep the io.js process running.  However, it is
 still a good idea to explicitly [`destroy()`](#http_agent_destroy)
 KeepAlive agents when they are no longer in use, so that the Sockets
 will be shut down.
@@ -713,7 +709,7 @@ Until the data is consumed, the `'end'` event will not fire.  Also, until
 the data is read it will consume memory that can eventually lead to a
 'process out of memory' error.
 
-Note: Node does not check whether Content-Length and the length of the body
+Note: io.js does not check whether Content-Length and the length of the body
 which has been transmitted are equal or not.
 
 The request implements the [Writable Stream][] interface. This is an
@@ -762,7 +758,7 @@ A client server pair that show you how to listen for the `connect` event.
       var srvUrl = url.parse('http://' + req.url);
       var srvSocket = net.connect(srvUrl.port, srvUrl.hostname, function() {
         cltSocket.write('HTTP/1.1 200 Connection Established\r\n' +
-                        'Proxy-agent: Node-Proxy\r\n' +
+                        'Proxy-agent: io.js-Proxy\r\n' +
                         '\r\n');
         srvSocket.write(head);
         srvSocket.pipe(cltSocket);
@@ -858,16 +854,23 @@ Emitted when the server sends a '100 Continue' HTTP response, usually because
 the request contained 'Expect: 100-continue'. This is an instruction that
 the client should send the request body.
 
-### request.flush()
+### Event: 'abort'
+
+`function () { }`
+
+Emitted when the request has been aborted by the client. This event is only
+emitted on the first call to `abort()`.
+
+### request.flushHeaders()
 
 Flush the request headers.
 
-For efficiency reasons, node.js normally buffers the request headers until you
+For efficiency reasons, io.js normally buffers the request headers until you
 call `request.end()` or write the first chunk of request data.  It then tries
 hard to pack the request headers and data into a single TCP packet.
 
 That's usually what you want (it saves a TCP round-trip) but not when the first
-data isn't sent until possibly much later.  `request.flush()` lets you bypass
+data isn't sent until possibly much later.  `request.flushHeaders()` lets you bypass
 the optimization and kickstart the request.
 
 ### request.write(chunk[, encoding][, callback])
@@ -1021,7 +1024,7 @@ Then `request.url` will be:
 If you would like to parse the URL into its parts, you can use
 `require('url').parse(request.url)`.  Example:
 
-    node> require('url').parse('/status?name=ryan')
+    iojs> require('url').parse('/status?name=ryan')
     { href: '/status?name=ryan',
       search: '?name=ryan',
       query: 'name=ryan',
@@ -1031,7 +1034,7 @@ If you would like to extract the params from the query string,
 you can use the `require('querystring').parse` function, or pass
 `true` as the second argument to `require('url').parse`.  Example:
 
-    node> require('url').parse('/status?name=ryan', true)
+    iojs> require('url').parse('/status?name=ryan', true)
     { href: '/status?name=ryan',
       search: '?name=ryan',
       query: { name: 'ryan' },

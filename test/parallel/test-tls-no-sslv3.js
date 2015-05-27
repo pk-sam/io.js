@@ -1,13 +1,19 @@
-if (!process.versions.openssl) {
-  console.error('Skipping because node compiled without OpenSSL.');
-  process.exit(0);
-}
-
 var common = require('../common');
 var assert = require('assert');
+
+if (!common.hasCrypto) {
+  console.log('1..0 # Skipped: missing crypto');
+  process.exit();
+}
+var tls = require('tls');
+
 var fs = require('fs');
 var spawn = require('child_process').spawn;
-var tls = require('tls');
+
+if (common.opensslCli === false) {
+  console.error('Skipping because openssl command cannot be executed');
+  process.exit(0);
+}
 
 var cert = fs.readFileSync(common.fixturesDir + '/test_cert.pem');
 var key = fs.readFileSync(common.fixturesDir + '/test_key.pem');
@@ -30,5 +36,5 @@ server.listen(common.PORT, '127.0.0.1', function() {
 });
 
 server.once('clientError', common.mustCall(function(err, conn) {
-  assert(/SSL3_GET_CLIENT_HELLO:wrong version number/.test(err.message));
+  assert(/:wrong version number/.test(err.message));
 }));

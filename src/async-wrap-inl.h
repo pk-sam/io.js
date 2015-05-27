@@ -17,11 +17,11 @@ inline AsyncWrap::AsyncWrap(Environment* env,
                             v8::Handle<v8::Object> object,
                             ProviderType provider,
                             AsyncWrap* parent)
-    : BaseObject(env, object),
-      has_async_queue_(false),
-      provider_type_(provider) {
+    : BaseObject(env, object), bits_(static_cast<uint32_t>(provider) << 1) {
   // Check user controlled flag to see if the init callback should run.
-  if (!env->call_async_init_hook())
+  if (!env->using_asyncwrap())
+    return;
+  if (!env->call_async_init_hook() && parent == nullptr)
     return;
 
   // TODO(trevnorris): Until it's verified all passed object's are not weak,
@@ -47,7 +47,7 @@ inline AsyncWrap::AsyncWrap(Environment* env,
   if (try_catch.HasCaught())
     FatalError("node::AsyncWrap::AsyncWrap", "init hook threw");
 
-  has_async_queue_ = true;
+  bits_ |= 1;  // has_async_queue() is true now.
 
   if (parent != nullptr) {
     env->async_hooks_post_function()->Call(parent_obj, 0, nullptr);
@@ -57,8 +57,13 @@ inline AsyncWrap::AsyncWrap(Environment* env,
 }
 
 
-inline uint32_t AsyncWrap::provider_type() const {
-  return provider_type_;
+inline bool AsyncWrap::has_async_queue() const {
+  return static_cast<bool>(bits_ & 1);
+}
+
+
+inline AsyncWrap::ProviderType AsyncWrap::provider_type() const {
+  return static_cast<ProviderType>(bits_ >> 1);
 }
 
 

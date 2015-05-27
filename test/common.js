@@ -2,6 +2,7 @@ var path = require('path');
 var fs = require('fs');
 var assert = require('assert');
 var os = require('os');
+var child_process = require('child_process');
 
 exports.testDir = path.dirname(__filename);
 exports.fixturesDir = path.join(exports.testDir, 'fixtures');
@@ -18,10 +19,76 @@ if (process.env.TEST_THREAD_ID) {
 }
 exports.tmpDir = path.join(exports.testDir, exports.tmpDirName);
 
-exports.opensslCli = path.join(path.dirname(process.execPath), 'openssl-cli');
+var opensslCli = null;
+var inFreeBSDJail = null;
+var localhostIPv4 = null;
+
+Object.defineProperty(exports, 'inFreeBSDJail', {
+  get: function() {
+    if (inFreeBSDJail !== null) return inFreeBSDJail;
+
+    if (process.platform === 'freebsd' &&
+      child_process.execSync('sysctl -n security.jail.jailed').toString() ===
+      '1\n') {
+      inFreeBSDJail = true;
+    } else {
+      inFreeBSDJail = false;
+    }
+    return inFreeBSDJail;
+  }
+});
+
+Object.defineProperty(exports, 'localhostIPv4', {
+  get: function() {
+    if (localhostIPv4 !== null) return localhostIPv4;
+
+    if (exports.inFreeBSDJail) {
+      // Jailed network interfaces are a bit special - since we need to jump
+      // through loops, as well as this being an exception case, assume the
+      // user will provide this instead.
+      if (process.env.LOCALHOST) {
+        localhostIPv4 = process.env.LOCALHOST;
+      } else {
+        console.error('Looks like we\'re in a FreeBSD Jail. ' +
+                      'Please provide your default interface address ' +
+                      'as LOCALHOST or expect some tests to fail.');
+      }
+    }
+
+    if (localhostIPv4 === null) localhostIPv4 = '127.0.0.1';
+
+    return localhostIPv4;
+  }
+});
+
+// opensslCli defined lazily to reduce overhead of spawnSync
+Object.defineProperty(exports, 'opensslCli', {get: function() {
+  if (opensslCli !== null) return opensslCli;
+
+  if (process.config.variables.node_shared_openssl) {
+    // use external command
+    opensslCli = 'openssl';
+  } else {
+    // use command built from sources included in io.js repository
+    opensslCli = path.join(path.dirname(process.execPath), 'openssl-cli');
+  }
+
+  if (process.platform === 'win32') opensslCli += '.exe';
+
+  var openssl_cmd = child_process.spawnSync(opensslCli, ['version']);
+  if (openssl_cmd.status !== 0 || openssl_cmd.error !== undefined) {
+    // openssl command cannot be executed
+    opensslCli = false;
+  }
+  return opensslCli;
+}, enumerable: true });
+
+Object.defineProperty(exports, 'hasCrypto', {get: function() {
+  return process.versions.openssl ? true : false;
+}});
+
 if (process.platform === 'win32') {
   exports.PIPE = '\\\\.\\pipe\\libuv-test';
-  exports.opensslCli += '.exe';
 } else {
   exports.PIPE = exports.tmpDir + '/test.sock';
 }
@@ -35,12 +102,6 @@ if (process.env.NODE_COMMON_PIPE) {
   } catch (e) {
     // Ignore.
   }
-}
-
-try {
-  fs.accessSync(exports.opensslCli);
-} catch (err) {
-  exports.opensslCli = false;
 }
 
 if (process.platform === 'win32') {
@@ -97,6 +158,17 @@ exports.spawnCat = function(options) {
 };
 
 
+exports.spawnSyncCat = function(options) {
+  var spawnSync = require('child_process').spawnSync;
+
+  if (process.platform === 'win32') {
+    return spawnSync('more', [], options);
+  } else {
+    return spawnSync('cat', [], options);
+  }
+};
+
+
 exports.spawnPwd = function(options) {
   var spawn = require('child_process').spawn;
 
@@ -105,6 +177,16 @@ exports.spawnPwd = function(options) {
   } else {
     return spawn('pwd', [], options);
   }
+};
+
+exports.platformTimeout = function(ms) {
+  if (process.arch !== 'arm')
+    return ms;
+
+  if (process.config.variables.arm_version === '6')
+    return 7 * ms;  // ARMv6
+
+  return 2 * ms;  // ARMv7 and up.
 };
 
 var knownGlobals = [setTimeout,
@@ -130,8 +212,6 @@ if (global.DTRACE_HTTP_SERVER_RESPONSE) {
   knownGlobals.push(DTRACE_HTTP_CLIENT_REQUEST);
   knownGlobals.push(DTRACE_NET_STREAM_END);
   knownGlobals.push(DTRACE_NET_SERVER_CONNECTION);
-  knownGlobals.push(DTRACE_NET_SOCKET_READ);
-  knownGlobals.push(DTRACE_NET_SOCKET_WRITE);
 }
 
 if (global.COUNTER_NET_SERVER_CONNECTION) {
@@ -141,6 +221,15 @@ if (global.COUNTER_NET_SERVER_CONNECTION) {
   knownGlobals.push(COUNTER_HTTP_SERVER_RESPONSE);
   knownGlobals.push(COUNTER_HTTP_CLIENT_REQUEST);
   knownGlobals.push(COUNTER_HTTP_CLIENT_RESPONSE);
+}
+
+if (global.LTTNG_HTTP_SERVER_RESPONSE) {
+  knownGlobals.push(LTTNG_HTTP_SERVER_RESPONSE);
+  knownGlobals.push(LTTNG_HTTP_SERVER_REQUEST);
+  knownGlobals.push(LTTNG_HTTP_CLIENT_RESPONSE);
+  knownGlobals.push(LTTNG_HTTP_CLIENT_REQUEST);
+  knownGlobals.push(LTTNG_NET_STREAM_END);
+  knownGlobals.push(LTTNG_NET_SERVER_CONNECTION);
 }
 
 if (global.ArrayBuffer) {

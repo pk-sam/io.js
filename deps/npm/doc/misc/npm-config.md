@@ -3,7 +3,7 @@ npm-config(7) -- More than you probably want to know about npm configuration
 
 ## DESCRIPTION
 
-npm gets its configuration values from 6 sources, in this priority:
+npm gets its configuration values from the following sources, sorted by priority:
 
 ### Command Line Flags
 
@@ -55,7 +55,6 @@ The following shorthands are parsed on the command-line:
 * `-m`: `--message`
 * `-p`, `--porcelain`: `--parseable`
 * `-reg`: `--registry`
-* `-v`: `--version`
 * `-f`: `--force`
 * `-desc`: `--description`
 * `-S`: `--save`
@@ -106,6 +105,16 @@ then the user could change the behavior by doing:
 See package.json(5) for more information.
 
 ## Config Settings
+
+### access
+
+* Default: `restricted`
+* Type: Access
+
+When publishing scoped packages, the access level defaults to `restricted`.  If
+you want your scoped package to be publicly viewable (and installable) set
+`--access=public`. The only valid values for `access` are `public` and
+`restricted`. Unscoped packages _always_ have an access level of `public`.
 
 ### always-auth
 
@@ -234,8 +243,13 @@ If true, then only prints color codes for tty file descriptors.
 * Default: Infinity
 * Type: Number
 
-The depth to go when recursing directories for `npm ls` and
-`npm cache ls`.
+The depth to go when recursing directories for `npm ls`,
+`npm cache ls`, and `npm outdated`.
+
+For `npm outdated`, a setting of `Infinity` will be treated as `0`
+since that gives more useful information.  To show the outdated status
+of all packages and dependents, use a large integer value,
+e.g., `npm outdated --depth 9999`
 
 ### description
 
@@ -376,6 +390,17 @@ A proxy to use for outgoing https requests. If the `HTTPS_PROXY` or
 `https_proxy` or `HTTP_PROXY` or `http_proxy` environment variables are set,
 proxy settings will be honored by the underlying `request` library.
 
+### if-present
+
+* Default: false
+* Type: Boolean
+
+If true, npm will not exit with an error code when `run-script` is invoked for
+a script that isn't defined in the `scripts` section of `package.json`. This
+option can be used when it's desirable to optionally run a script when it's
+present and fail if the script fails. This is useful, for example, when running
+scripts that may only apply for some builds in an otherwise generic CI setup.
+
 ### ignore-scripts
 
 * Default: false
@@ -423,7 +448,7 @@ The value `npm init` should use by default for the package license.
 
 ### init-version
 
-* Default: "0.0.0"
+* Default: "1.0.0"
 * Type: semver
 
 The value that `npm init` should use by default for the package
@@ -680,7 +705,7 @@ Only works if there is already a package.json file present.
 Configure how versions of packages installed to a package.json file via
 `--save` or `--save-dev` get prefixed.
 
-For example if a package has version `1.2.3`, by default it's version is
+For example if a package has version `1.2.3`, by default its version is
 set to `^1.2.3` which allows minor upgrades for that package, but after
 `npm config set save-prefix='~'` it would be set to `~1.2.3` which only allows
 patch upgrades.
@@ -779,6 +804,19 @@ it will install the specified tag.
 Also the tag that is added to the package@version specified by the `npm
 tag` command, if no explicit tag is given.
 
+### tag-version-prefix
+
+* Default: `"v"`
+* Type: String
+
+If set, alters the prefix used when tagging a new version when performing a
+version increment using  `npm-version`. To remove the prefix altogether, set it
+to the empty string: `""`.
+
+Because other tools may rely on the convention that npm version tags look like
+`v1.0.0`, _only use this property if it is absolutely necessary_. In
+particular, use care when overriding this setting for public packages.
+
 ### tmp
 
 * Default: TMPDIR environment variable, or "/tmp"
@@ -829,7 +867,7 @@ The location of user-level configuration settings.
 ### umask
 
 * Default: 022
-* Type: Octal numeric string
+* Type: Octal numeric string in range 0000..0777 (0..511)
 
 The "umask" value to use when setting the file creation mode on files
 and folders.
@@ -876,7 +914,6 @@ Set to `"browser"` to view html help content in the default web browser.
 ## SEE ALSO
 
 * npm-config(1)
-* npm-config(7)
 * npmrc(5)
 * npm-scripts(7)
 * npm-folders(5)

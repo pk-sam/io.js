@@ -1,6 +1,9 @@
 /*--------------------- Layout and Typography ----------------------------*/
 html {
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-variant-ligatures: none;
+          font-variant-ligatures: none;
 }
 
 body {
@@ -85,18 +88,10 @@ code a:hover {
 }
 
 .api_stability_2 {
-  background-color: #FFA000;
+  background-color: #4EBA0F;
 }
 
 .api_stability_3 {
-  background-color: #AEC516;
-}
-
-.api_stability_4 {
-  background-color: #009431;
-}
-
-.api_stability_5 {
   background-color: #0084B6;
 }
 
@@ -215,7 +210,6 @@ h1 span, h2 span, h3 span, h4 span {
   display: block;
   top: 0;
   right: 0;
-  opacity: 0.3;
 }
 
 h1 span:hover, h2 span:hover, h3 span:hover, h4 span:hover {
@@ -357,7 +351,20 @@ span.type {
 
 #column2.interior {
   width: 234px;
-  float: left;
+  position: fixed;
+  height: 100%;
+  overflow-y: scroll;
+}
+
+#column2.interior:after {
+  content: '';
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 234px;
+  height: 5em;
+  background: linear-gradient(rgba(242,245,240, 0), rgba(242,245,240, 1));
+  pointer-events: none;
 }
 
 #column2 ul {
@@ -366,7 +373,7 @@ span.type {
   margin-top: 1.25em;
   background: #f2f5f0;
   margin-bottom: 0;
-  padding-bottom: 2.5em;
+  padding-bottom: 4em;
 }
 
 #column2 ul li {
@@ -391,7 +398,7 @@ span.type {
 
 #footer {
   padding: 0;
-  min-height: 300px;
+  min-height: 24px;
   background: #333;
   color: white;
 }
@@ -399,7 +406,7 @@ span.type {
 span > .mark,
 span > .mark:visited {
   font-size: 18px;
-  color: #ccc;
+  color: #707070;
   position: absolute;
   top: 0px;
   right: 0px;
@@ -463,4 +470,3 @@ td > *:last-child {
     display: none;
   }
 }
-
